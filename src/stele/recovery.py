@@ -22,7 +22,7 @@ import bcrypt
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from loomworks.stele.models import RecoveryCodeRow
+from stele.models import RecoveryCodeRow
 
 ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # 31 chars; no O, 0, I, 1, L
 CODE_LENGTH = 8

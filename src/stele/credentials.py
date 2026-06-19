@@ -1,8 +1,8 @@
 """Persistence layer for webauthn_credentials (Phase 14).
 
 Pure CRUD against the WebauthnCredentialRow ORM. The cryptographic
-ceremony lives in `loomworks.stele.webauthn`; this module never
-touches the WebAuthn library.
+ceremony lives in `stele.webauthn`; this module never touches the
+WebAuthn library.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from loomworks.stele.models import WebauthnCredentialRow
+from stele.models import WebauthnCredentialRow
 
 
 class LastPasskeyError(Exception):

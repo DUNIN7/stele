@@ -27,9 +27,8 @@ from uuid import UUID
 from cryptography.fernet import InvalidToken
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from loomworks.credentials.envelope import kek_multifernet
-from loomworks.credentials.kek import EnvKeyEncryptionKeyProvider
-from loomworks.stele.registry import (
+from stele.kek import EnvKeyEncryptionKeyProvider, kek_multifernet
+from stele.registry import (
     Principal,
     get_principal_by_id,
 )

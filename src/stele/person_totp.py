@@ -1,13 +1,12 @@
 """Person-scoped TOTP re-provisioning (rotate) — Stele Phase 5 (CR-2026-108 §5B).
 
-A person-scoped TWIN of the two-step contributor TOTP flow
-(``contributors.totp.generate_totp_secret`` + ``commit_totp_secret``),
-re-implemented here for ``PersonRow`` so the dependency runs
-``stele`` -> ``credentials.envelope``, never ``stele`` -> ``contributors``
-(decision 3: a twin, not a generalization — generalizing would invert the
-layering). The crypto path is identical to the one
-``registry.mint_principal`` uses for a person's first secret:
-``encrypt_for_scope(SCOPE_TOTP, secret, db, EnvKeyEncryptionKeyProvider(...))``.
+A person-scoped TWIN of the two-step contributor TOTP flow, re-implemented here
+for ``PrincipalRow`` (decision 3: a twin, not a generalization — generalizing
+would invert the layering). The crypto path is identical to the one
+``registry.mint_principal`` uses for a principal's first secret: KEK-direct
+(Level A) via ``stele.kek.kek_encrypt(secret, EnvKeyEncryptionKeyProvider(...))``
+— a bare Fernet token under the KEK, no per-scope DEK (P7-1: Stele has one secret
+scope, so it ships no ``data_encryption_keys`` table).
 
 Unlike the contributor's first-time setup (which refuses when a secret is
 already present), this is a deliberate ROTATE: the person already has a
@@ -25,9 +24,8 @@ import pyotp
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from loomworks.credentials.envelope import SCOPE_TOTP, encrypt_for_scope
-from loomworks.credentials.kek import EnvKeyEncryptionKeyProvider
-from loomworks.stele.models import PrincipalRow
+from stele.kek import EnvKeyEncryptionKeyProvider, kek_encrypt
+from stele.models import PrincipalRow
 
 ISSUER_NAME = "Loomworks"
 
@@ -107,8 +105,8 @@ async def confirm_totp_rotation(
     if not pyotp.TOTP(secret).verify(code, valid_window=1):
         raise PersonTotpCodeInvalid("Invalid code. Try again.")
 
-    row.totp_secret = await encrypt_for_scope(
-        SCOPE_TOTP, secret, db, EnvKeyEncryptionKeyProvider(secret_key=secret_key)
+    row.totp_secret = kek_encrypt(
+        secret, EnvKeyEncryptionKeyProvider(secret_key=secret_key)
     )
     row.updated_at = datetime.now(timezone.utc)
     await db.flush()

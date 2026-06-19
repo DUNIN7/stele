@@ -1,7 +1,7 @@
 """Stele identity row models (CR-2026-104 Phase 1; CR-2026-109 Phase 6).
 
-Holds **only** ``SteleBase`` (``loomworks.stele.base``) rows now — the tables a
-standalone Stele ships, with no host row and no outward foreign key:
+Holds **only** ``SteleBase`` (``stele.base``) rows — the tables a standalone
+Stele ships, with no host row and no outward foreign key:
 
 - ``PrincipalRow`` -> ``principals`` (the Stele-owned identity table), and
 - the two credential rows ``WebauthnCredentialRow`` -> ``webauthn_credentials``
@@ -42,7 +42,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from loomworks.stele.base import Base as SteleBase
+from stele.base import Base as SteleBase
 
 
 class PrincipalRow(SteleBase):

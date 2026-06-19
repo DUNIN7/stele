@@ -18,11 +18,10 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from loomworks.credentials.envelope import SCOPE_TOTP, encrypt_for_scope
-from loomworks.credentials.kek import EnvKeyEncryptionKeyProvider
-from loomworks.stele import credentials as credentials_registry
-from loomworks.stele import recovery as recovery_codes
-from loomworks.stele.models import PrincipalRow
+from stele.kek import EnvKeyEncryptionKeyProvider, kek_encrypt
+from stele import credentials as credentials_registry
+from stele import recovery as recovery_codes
+from stele.models import PrincipalRow
 
 
 class Principal(BaseModel):
@@ -118,10 +117,8 @@ async def mint_principal(
     ``onboard`` phase. It commits NOTHING; the host owns the transaction
     boundary and commits the mint phase.
     """
-    totp_secret_enc = await encrypt_for_scope(
-        SCOPE_TOTP,
+    totp_secret_enc = kek_encrypt(
         totp_secret_plaintext,
-        db,
         EnvKeyEncryptionKeyProvider(secret_key=secret_key),
     )
     person = PrincipalRow(
