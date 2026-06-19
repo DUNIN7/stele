@@ -12,11 +12,13 @@ The engine's envelope / per-scope-DEK machinery (Level B — the
 complexity without payoff, so Stele ships no DEK table. (Reclaimable if Stele
 later grows a second secret kind: re-introduce the envelope then.)
 
-KEK material is read from the environment (``LOOMWORKS_SECRET_KEY``) only when a
-``secret_key`` is not injected; every Stele call site injects an explicit
-``secret_key``, so the env read is the fallback default. (P7-2/3 polish: a
-STELE-native env-var name; left as the engine's name here so the engine's
-deployment env works unchanged after the re-point.)
+KEK material is read from the environment (``STELE_SECRET_KEY``, with
+``STELE_SECRET_KEYS_PREVIOUS`` for rotation) **only** when a ``secret_key`` is not
+injected; every Stele call site injects an explicit ``secret_key``, so this env
+read is a standalone fallback. (P7-2 §2 renamed the fallback key from the engine's
+``LOOMWORKS_SECRET_KEY`` to this STELE-native name; the rename is strictly
+internal — the engine reads its own ``LOOMWORKS_SECRET_KEY`` via its own provider
+and injects it, never firing this fallback, so no engine deployment env changes.)
 """
 from __future__ import annotations
 
@@ -46,10 +48,10 @@ class EnvKeyEncryptionKeyProvider:
     """Environment-backed KEK provider.
 
     ``secret_key`` may be injected (tests / host overrides); otherwise the live
-    ``LOOMWORKS_SECRET_KEY`` env value is read on every call. ``previous_keys``
+    ``STELE_SECRET_KEY`` env value is read on every call. ``previous_keys``
     are older KEKs kept decrypt-readable during a rotation: ``all_keks`` returns
     ``[current, *previous]`` (current first). Injected for tests; otherwise read
-    from ``LOOMWORKS_SECRET_KEYS_PREVIOUS`` (comma-separated). Empty ⇒
+    from ``STELE_SECRET_KEYS_PREVIOUS`` (comma-separated). Empty ⇒
     ``all_keks() == [current]``.
     """
 
@@ -64,20 +66,20 @@ class EnvKeyEncryptionKeyProvider:
     def current_kek_material(self) -> str:
         if self._secret_key is not None:
             return self._secret_key
-        return os.environ.get("LOOMWORKS_SECRET_KEY", "") or ""
+        return os.environ.get("STELE_SECRET_KEY", "") or ""
 
     def current_kek(self) -> str:
         key = self.current_kek_material()
         if not key:
             raise KeyEncryptionKeyUnavailableError(
-                "No KEK material configured (LOOMWORKS_SECRET_KEY is empty)."
+                "No KEK material configured (STELE_SECRET_KEY is empty)."
             )
         return key
 
     def _previous(self) -> list[str]:
         if self._previous_keys is not None:
             return [k for k in self._previous_keys if k]
-        raw = os.environ.get("LOOMWORKS_SECRET_KEYS_PREVIOUS", "") or ""
+        raw = os.environ.get("STELE_SECRET_KEYS_PREVIOUS", "") or ""
         return [k.strip() for k in raw.split(",") if k.strip()]
 
     def all_keks(self) -> list[str]:
