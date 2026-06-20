@@ -1,4 +1,4 @@
-"""Test fixtures for the Stele suite (CR-2026-117 P117-1).
+"""Test fixtures for the Stele suite.
 
 Shape:
   - One throwaway Postgres, read from ``STELE_DATABASE_URL`` (the same variable the

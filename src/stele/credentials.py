@@ -1,4 +1,4 @@
-"""Persistence layer for webauthn_credentials (Phase 14).
+"""Persistence layer for webauthn_credentials.
 
 Pure CRUD against the WebauthnCredentialRow ORM. The cryptographic
 ceremony lives in `stele.webauthn`; this module never touches the

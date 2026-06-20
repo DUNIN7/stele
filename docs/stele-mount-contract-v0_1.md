@@ -4,7 +4,6 @@
 **Date.** 2026-06-19
 **Status.** The mount contract for an adopter of the standalone Stele package, written down. What each slot is, what you supply, where the boundary sits. Adopter-facing.
 **Render-type.** Standard. HTML primary, Markdown source alongside.
-**Source.** CR-2026-116 (Stele Phase 7 P7-3); the runnable reference host at `stele/examples/`, confirmed @ stele `8246729`.
 
 ---
 

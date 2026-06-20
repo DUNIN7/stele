@@ -1,15 +1,14 @@
 """The Stele reference host — a minimal standalone FastAPI app.
 
-What it demonstrates (CR-2026-116 §2):
-  - Mounting ``stele.router`` (the 8 credential-backed enrollment routes) with the
-    post-lift slot set — just two required providers: a DB session and a WebAuthn
-    config. The passkey-enrollment ceremony is Stele's own (lifted at P7-3), so the
-    host supplies no ceremony.
+What it demonstrates:
+  - Mounting ``stele.router`` (the 8 credential-backed enrollment routes) with
+    just two required providers: a DB session and a WebAuthn config. The
+    passkey-enrollment ceremony is Stele's own, so the host supplies no ceremony.
   - Both delivery shapes over one Stele-minted token: a browser uses the session
     **cookie**; an agent sends ``Authorization: Bearer``. The single ``extract_token``
     override reads the cookie if present, else the bearer header.
   - Enrollment AND login. Enrollment is the mounted routes. Login is host
-    composition over Stele primitives (B-first): passkey assertion → second factor
+    composition over Stele primitives: passkey assertion → second factor
     (TOTP or a recovery code) → full session. Login-TOTP is composed here
     (kek_decrypt the secret, then pyotp verify) — Stele's surface does not grow.
   - Seed alignment: NO email as identity. Sign-in keys on credentials only; the app

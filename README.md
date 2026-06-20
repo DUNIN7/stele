@@ -8,9 +8,8 @@ leaves *what they may reach* to you.
 
 > **Status:** Standalone, mountable, and tested. The core primitives, the
 > mountable router + SDK, and the runnable reference host all ship. A real test
-> suite (`tests/`) runs against a throwaway Postgres in CI on every push
-> (CR-2026-117). Library metadata is `0.1.0`; the first installable tag is
-> `v0.1.0`.
+> suite (`tests/`) runs against a throwaway Postgres in CI on every push.
+> Library metadata is `0.1.0`; the first installable tag is `v0.1.0`.
 
 ## What's here
 
@@ -58,7 +57,7 @@ export STELE_DATABASE_URL="postgresql+asyncpg://USER@localhost:5432/YOUR_DB"
 alembic upgrade head
 ```
 
-The three tables build with zero residual DUNIN7/Loomworks dependency.
+The three tables build against a fresh database with no external dependency.
 
 To run the reference host end-to-end (Postgres, config, the browser ceremony),
 follow [`examples/README.md`](examples/README.md). To run the tests:

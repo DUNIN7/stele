@@ -1,18 +1,15 @@
 """baseline — Stele 3-table schema (principals, webauthn_credentials, recovery_codes)
 
-The standalone Stele migration set's consolidated baseline (CR-2026-114 P7-1,
-Deliverable 3). One revision, ``down_revision = None``, building the *settled*
-Stele schema directly against a fresh database — the final state as of
-loomworks-engine ``main`` ``fe7c3f1`` / alembic ``0093``, read byte-faithfully
-from the live ``playground_dev`` DDL (not the ORM model alone: the per-person
-indexes ``idx_*_person`` are migration-only and absent from ``__table_args__``;
-``webauthn_credentials``/``recovery_codes``.id carry ``gen_random_uuid()`` server
-defaults while ``principals.id`` does not — all reproduced here).
+The consolidated baseline. One revision, ``down_revision = None``, building the
+settled Stele schema directly against a fresh database. The detail beyond the ORM
+models: the per-person indexes ``idx_*_person`` are migration-only and absent from
+``__table_args__``; ``webauthn_credentials``/``recovery_codes``.id carry
+``gen_random_uuid()`` server defaults while ``principals.id`` does not — all
+reproduced here.
 
-It carries NONE of the engine's ``0029->0093`` expand->contract scaffolding: no
-``persons`` seed, no mirror triggers, no host foreign keys. Stele encrypts its one
-secret scope (``totp_secret``) KEK-direct, so there is **no ``data_encryption_keys``
-table** (P7-1 Blocker 2+3 / §G3). Three tables only.
+There is no expand/contract scaffolding: no host seed, no mirror triggers, no host
+foreign keys. Stele encrypts its one secret scope (``totp_secret``) KEK-direct, so
+there is **no ``data_encryption_keys`` table**. Three tables only.
 
 Revision ID: 0001_baseline
 Revises:
@@ -33,7 +30,7 @@ depends_on = None
 
 def upgrade() -> None:
     # principals — the 7 identity/auth columns. id has NO server default (the
-    # ORM supplies uuid.uuid4 app-side), matching the engine's 0085 shape.
+    # ORM supplies uuid.uuid4 app-side).
     op.create_table(
         "principals",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),

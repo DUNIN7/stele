@@ -1,10 +1,10 @@
 # Stele reference host
 
 A minimal standalone FastAPI app that **mounts `stele.router`** and **composes
-signup + login** over Stele's primitives. It is the clone-and-run-and-*use* proof
-for Phase 7: a stranger stands up Postgres, runs Stele's baseline migration, fills
-a generated `.env`, starts this app, and **registers a real passkey in a browser**
-that round-trips through `stele.router`.
+signup + login** over Stele's primitives. It is the clone-and-run-and-*use* proof:
+a stranger stands up Postgres, runs Stele's baseline migration, fills a generated
+`.env`, starts this app, and **registers a real passkey in a browser** that
+round-trips through `stele.router`.
 
 This is host code — not part of the `stele` package. It shows, in one readable
 module (`reference_app/main.py`), exactly what a real mount takes.
@@ -13,7 +13,7 @@ module (`reference_app/main.py`), exactly what a real mount takes.
 
 - **The post-lift mount** — `stele.router`'s 8 enrollment routes with only **two
   required providers**: a DB session and a WebAuthn config. The passkey-enrollment
-  ceremony is Stele's own (lifted at P7-3), so the host supplies no ceremony.
+  ceremony is Stele's own, so the host supplies no ceremony.
 - **Both delivery shapes** over one Stele-minted token — a browser uses the session
   **cookie**; an agent sends `Authorization: Bearer`. One `extract_token` override
   serves both.

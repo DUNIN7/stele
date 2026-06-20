@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stele config generator (P7-3 §4) — env-scaffolding only.
+"""Stele config generator — env-scaffolding only.
 
 Emits a ``.env`` template for a Stele mount to stdout:
 

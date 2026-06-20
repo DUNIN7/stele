@@ -1,4 +1,4 @@
-"""Alembic environment for the standalone Stele migration set (P7-1).
+"""Alembic environment for the standalone Stele migration set.
 
 Async (asyncpg) online migrations. The database URL is read from the
 ``STELE_DATABASE_URL`` environment variable (a ``postgresql+asyncpg://`` URL).
