@@ -1,0 +1,22 @@
+# A throwaway Postgres for the reference app — "clone and run" in one command.
+#
+#   docker compose up -d
+#   # then point the app at it:
+#   #   STELE_DATABASE_URL=postgresql+asyncpg://stele:stele@localhost:5433/stele_ref
+#
+# Stele's models use JSONB + bytea, so a real Postgres is required (SQLite is not
+# viable). Port 5433 avoids colliding with a host Postgres on 5432.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: stele
+      POSTGRES_PASSWORD: stele
+      POSTGRES_DB: stele_ref
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stele -d stele_ref"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
