@@ -2,32 +2,72 @@
 
 A standalone identity & authentication substrate: **principals** (UUID identity),
 **WebAuthn passkeys**, **TOTP**, and **recovery codes**. No host framework
-dependency — Stele is a library of primitives plus its own database schema.
+dependency — Stele is a library of primitives, a mountable router, and its own
+database schema. Mount it into your FastAPI app; it proves *who* a caller is and
+leaves *what they may reach* to you.
 
-> **Status:** P7-1 packaging floor (CR-2026-114). This is the library + its
-> independently-runnable migration set. The SDK surface and mountable router are
-> P7-2; the reference app and full docs are P7-3.
+> **Status:** Standalone, mountable, and tested. The core primitives, the
+> mountable router + SDK, and the runnable reference host all ship. A real test
+> suite (`tests/`) runs against a throwaway Postgres in CI on every push
+> (CR-2026-117). Library metadata is `0.1.0`; the first installable tag is
+> `v0.1.0`.
 
 ## What's here
 
-- `src/stele/` — the 9 core modules (`base`, `models`, `credentials`, `recovery`,
-  `registry`, `session`, `person_totp`, `webauthn`) plus `kek` (the KEK-direct
-  crypto floor). No `data_encryption_keys` table — Stele encrypts its one secret
-  scope (the TOTP secret) KEK-direct.
+- `src/stele/` — the core modules (`base`, `models`, `credentials`, `recovery`,
+  `registry`, `session`, `person_totp`, `webauthn`, `api`) plus `kek` (the
+  KEK-direct crypto floor). No `data_encryption_keys` table — Stele encrypts its
+  one secret scope (the TOTP secret) KEK-direct. `import stele` pulls no web
+  framework; only touching `stele.router` loads FastAPI.
 - `migrations/` — an Alembic root with a single consolidated baseline that builds
   the three tables (`principals`, `webauthn_credentials`, `recovery_codes`)
-  against a fresh database.
+  against a fresh database. Postgres required (the schema uses `JSONB` and
+  `bytea`); SQLite is not an option.
+- `examples/` — a runnable reference host: the whole mount in one readable module
+  (`reference_app/main.py`), the browser WebAuthn ceremony, a config generator,
+  a throwaway-Postgres compose file, and a walkthrough README.
+- `docs/` — the mount-contract adopter guide: the two slots, the
+  authentication-not-authorization boundary, the discoverable sign-in
+  commitment, narrated from the reference host.
+- `tests/` — the suite: primitive units + a mounted reference-host round-trip,
+  run in CI against a Postgres service.
+
+## Mounting Stele
+
+```python
+from fastapi import FastAPI
+import stele
+
+app = FastAPI()
+app.include_router(stele.router, prefix="/me/security")
+app.dependency_overrides[stele.provide_db_session] = my_db_session      # required
+app.dependency_overrides[stele.provide_webauthn_config] = my_rp_config  # required
+```
+
+Two slots are required (`provide_db_session`, `provide_webauthn_config`) and fail
+loudly until you supply them. The rest have working defaults — including
+`resolve_current_principal`, the one seam where you add **your** authorization
+policy. The full contract is in [`docs/stele-mount-contract-v0_1.md`](docs/stele-mount-contract-v0_1.md).
 
 ## Clone-and-run (the done-bar)
 
 ```sh
 pip install -e .
-export LOOMWORKS_SECRET_KEY="$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
+export STELE_SECRET_KEY="$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
 export STELE_DATABASE_URL="postgresql+asyncpg://USER@localhost:5432/YOUR_DB"
 alembic upgrade head
 ```
 
 The three tables build with zero residual DUNIN7/Loomworks dependency.
+
+To run the reference host end-to-end (Postgres, config, the browser ceremony),
+follow [`examples/README.md`](examples/README.md). To run the tests:
+
+```sh
+pip install -e ".[test]"
+export STELE_DATABASE_URL="postgresql+asyncpg://USER@localhost:5432/YOUR_TEST_DB"
+pytest
+```
 
 ---
 
