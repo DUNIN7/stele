@@ -1,18 +1,15 @@
-"""Person-scoped TOTP re-provisioning (rotate) — Stele Phase 5 (CR-2026-108 §5B).
+"""Person-scoped TOTP re-provisioning (rotate).
 
-A person-scoped TWIN of the two-step contributor TOTP flow, re-implemented here
-for ``PrincipalRow`` (decision 3: a twin, not a generalization — generalizing
-would invert the layering). The crypto path is identical to the one
-``registry.mint_principal`` uses for a principal's first secret: KEK-direct
-(Level A) via ``stele.kek.kek_encrypt(secret, EnvKeyEncryptionKeyProvider(...))``
-— a bare Fernet token under the KEK, no per-scope DEK (P7-1: Stele has one secret
-scope, so it ships no ``data_encryption_keys`` table).
+The crypto path matches the one ``registry.mint_principal`` uses for a
+principal's first secret: KEK-direct via
+``stele.kek.kek_encrypt(secret, EnvKeyEncryptionKeyProvider(...))`` — a bare
+Fernet token under the KEK, no per-scope DEK (Stele has one secret scope, so it
+ships no ``data_encryption_keys`` table).
 
-Unlike the contributor's first-time setup (which refuses when a secret is
-already present), this is a deliberate ROTATE: the person already has a
-secret and is replacing it. The new secret is generated at ``begin`` and held
-by the caller until ``confirm`` verifies a live code against it — only then is
-the live column overwritten, so a failed confirm leaves the old secret intact.
+This is a deliberate ROTATE: the person already has a secret and is replacing
+it. The new secret is generated at ``begin`` and held by the caller until
+``confirm`` verifies a live code against it — only then is the live column
+overwritten, so a failed confirm leaves the old secret intact.
 """
 from __future__ import annotations
 

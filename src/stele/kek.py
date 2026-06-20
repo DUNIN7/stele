@@ -1,24 +1,20 @@
-"""KEK (key-encryption key) — Stele's standalone crypto floor.
+"""KEK (key-encryption key) — Stele's crypto floor.
 
-Lifted and slimmed from the engine's ``loomworks.credentials.kek`` +
-``loomworks.credentials.envelope`` (P7-1, CR-2026-114). Stele has exactly one
-secret scope — the principal ``totp_secret`` — plus the session token, both
-encrypted **KEK-direct** (Level A): the KEK is a Fernet ``MultiFernet``; writes
-encrypt under the first (current) key, decrypt tries all (so an old key kept in
-``previous`` still reads existing ciphertext during a rotation).
+Stele has exactly one secret scope — the principal ``totp_secret`` — plus the
+session token, both encrypted **KEK-direct** (Level A): the KEK is a Fernet
+``MultiFernet``; writes encrypt under the first (current) key, decrypt tries all
+(so an old key kept in ``previous`` still reads existing ciphertext during a
+rotation).
 
-The engine's envelope / per-scope-DEK machinery (Level B — the
-``data_encryption_keys`` table) is **not** lifted. At one secret scope it is
-complexity without payoff, so Stele ships no DEK table. (Reclaimable if Stele
-later grows a second secret kind: re-introduce the envelope then.)
+There is no envelope / per-scope-DEK machinery (no ``data_encryption_keys``
+table). At one secret scope that is complexity without payoff, so Stele ships no
+DEK table. (Reclaimable if Stele later grows a second secret kind: re-introduce
+the envelope then.)
 
 KEK material is read from the environment (``STELE_SECRET_KEY``, with
 ``STELE_SECRET_KEYS_PREVIOUS`` for rotation) **only** when a ``secret_key`` is not
 injected; every Stele call site injects an explicit ``secret_key``, so this env
-read is a standalone fallback. (P7-2 §2 renamed the fallback key from the engine's
-``LOOMWORKS_SECRET_KEY`` to this STELE-native name; the rename is strictly
-internal — the engine reads its own ``LOOMWORKS_SECRET_KEY`` via its own provider
-and injects it, never firing this fallback, so no engine deployment env changes.)
+read is a standalone fallback.
 """
 from __future__ import annotations
 

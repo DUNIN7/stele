@@ -1,10 +1,10 @@
-"""Stele's mountable primitive HTTP surface (Phase 7 P7-2, CR-2026-115).
+"""Stele's mountable primitive HTTP surface.
 
 A FastAPI ``APIRouter`` carrying the **direct-primitive** account-security
-endpoints — passkey enrollment, recovery codes, TOTP rotation — generalized from
-the engine's ``me_security`` router into a host-agnostic, mountable shape. A host
-mounts it with ``include_router(stele.api.router, prefix=...)`` and supplies a
-small, named set of dependencies (the injection contract below).
+endpoints — passkey enrollment, recovery codes, TOTP rotation — in a
+host-agnostic, mountable shape. A host mounts it with
+``include_router(stele.api.router, prefix=...)`` and supplies a small, named set
+of dependencies (the injection contract below).
 
 **The authorization boundary (stated, not silent).** This router ships
 *authentication* primitives: it proves credential control and operates on the
@@ -72,8 +72,8 @@ async def provide_db_session() -> AsyncSession:
 
 
 async def provide_secret_key() -> str:
-    """Slot — the KEK/secret. Default reads Stele's own env (STELE_SECRET_KEY
-    once §2 lands; the engine overrides this to inject its own secret)."""
+    """Slot — the KEK/secret. Default reads Stele's own env (STELE_SECRET_KEY);
+    a host may override this to inject its own secret."""
     key = EnvKeyEncryptionKeyProvider().current_kek_material()
     if not key:
         raise HTTPException(
@@ -138,7 +138,7 @@ async def provide_person_email(
 
 
 # ===========================================================================
-# Request / response models (lifted from the engine's me_security shapes).
+# Request / response models.
 # ===========================================================================
 
 
@@ -232,7 +232,7 @@ async def passkey_complete(
     # Security-critical bind: the add_id is a capability token, but persisting a
     # credential must depend on the token AND the session — a leaked add_id can
     # never bind a passkey to the wrong account. The ceremony's pending store is
-    # Stele-internal (post-P7-3 lift); the router reaches it directly.
+    # Stele-internal; the router reaches it directly.
     try:
         pending = pending_add_passkey_store.get(body.add_id, now=now)
     except PasskeyEnrollmentNotFound as exc:

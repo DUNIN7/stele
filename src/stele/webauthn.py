@@ -1,11 +1,10 @@
-"""WebAuthn registration and authentication helpers (Phase 14).
+"""WebAuthn registration and authentication helpers.
 
-Thin wrappers around the Duo `webauthn` library. The substrate does
-not implement WebAuthn cryptographic operations directly; this module
-isolates the library boundary so the rest of the codebase deals with
-plain dataclasses (`RegistrationOptions`, `VerifiedCredentialData`)
-and orchestration code can be tested without exercising the real
-ceremony.
+Thin wrappers around the `webauthn` library. Stele does not implement
+WebAuthn cryptographic operations directly; this module isolates the
+library boundary so the rest of the package deals with plain dataclasses
+(`RegistrationChallenge`, `VerifiedCredentialData`) and orchestration code
+can be tested without exercising the real ceremony.
 
 The verify entry points (`verify_registration`, `verify_authentication`)
 are exposed as module-level callables so tests can monkeypatch them to
@@ -236,15 +235,13 @@ def _extract_transports(credential: dict[str, Any]) -> Optional[list[str]]:
 
 
 # ===========================================================================
-# Add-passkey enrollment ceremony (lifted from the engine's persons.signup at
-# P7-3, CR-2026-116). An already-signed-in person registers an additional
-# passkey: ``add_passkey_begin`` issues the WebAuthn challenge and parks the
-# pending state; ``add_passkey_complete`` verifies the attestation and persists
-# the new credential. The ceremony is Stele's — it is a thin orchestration over
-# this module's own ``begin_registration`` / ``verify_registration`` plus
+# Add-passkey enrollment ceremony. An already-signed-in person registers an
+# additional passkey: ``add_passkey_begin`` issues the WebAuthn challenge and
+# parks the pending state; ``add_passkey_complete`` verifies the attestation and
+# persists the new credential. It is a thin orchestration over this module's own
+# ``begin_registration`` / ``verify_registration`` plus
 # ``stele.credentials.add_credential`` — so its companion pending store lives
-# here too (it was a host-injected slot pre-P7-3; the slot is gone). No host
-# concepts cross: ``person_id`` is the principal id.
+# here too. No host concepts cross: ``person_id`` is the principal id.
 # ===========================================================================
 
 ADD_PASSKEY_PENDING_TTL = timedelta(minutes=5)

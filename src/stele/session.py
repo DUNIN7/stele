@@ -1,20 +1,15 @@
-"""Person-scoped session model (Phase 14 §7.5).
+"""Person-scoped session model.
 
 A session is a Fernet-encrypted JSON payload — signature and integrity
-are both provided by Fernet's AEAD construction. The cookie value IS
+are both provided by Fernet's AEAD construction. The token value IS
 the Fernet token; no server-side state is required to validate.
 
 The payload carries:
-- person_id: the authenticated person.
-- totp_verified: True after the second factor verifies; the auth
-  middleware refuses requests carrying partial sessions on protected
-  routes.
+- person_id: the authenticated principal.
+- totp_verified: True once the second factor has verified. A session with
+  totp_verified=False is a partial session; the host gates protected routes on
+  this flag.
 - created_at / expires_at: lifecycle timestamps.
-
-A separate cookie is used for the partial session (the value of the
-intermediate token issued by /auth/login/complete). Step 5 does not
-re-issue it; the partial session lives in PartialSessionStore and the
-client passes the token in JSON body to /totp-verify or /recovery.
 """
 from __future__ import annotations
 
@@ -52,9 +47,9 @@ class SessionPayload:
 def encode_session(payload: SessionPayload, *, secret_key: str) -> str:
     """Serialize and encrypt the payload. The result is the cookie value.
 
-    Encrypted under the KEK MultiFernet (CR-2026-102 Level A): writes use the
-    current key; decode tries all keys, so a key rotation does not invalidate
-    live sessions. Sessions are stateless cookies — never the DEK envelope."""
+    Encrypted under the KEK MultiFernet: writes use the current key; decode
+    tries all keys, so a key rotation does not invalidate live sessions.
+    Sessions are stateless cookies — there is no server-side session store."""
     body = json.dumps(
         {
             "person_id": str(payload.person_id),
@@ -120,15 +115,12 @@ def issue_session(
 
 @dataclass(frozen=True)
 class ResolvedSession:
-    """The result of resolving a session token (CR-2026-106, Phase 3).
+    """The result of resolving a session token.
 
     Carries the principal and the decoded payload, so the host can
     apply its own policy (the second-factor gate) off ``payload.totp_verified``
     without re-decoding. ``resolve_session`` reports what it found; the host
     decides what to do with it.
-
-    Step 3.7 (CR-2026-110): the transitional ``person`` field (the retired
-    ``Person`` shim) was dropped; only ``principal`` remains.
     """
 
     principal: Principal
@@ -139,8 +131,7 @@ async def resolve_session(
     token: str, *, secret_key: str, now: datetime, db: AsyncSession
 ) -> "ResolvedSession | None":
     """Resolve a session token to its principal + payload — the
-    host-agnostic "who is this session?" primitive realizing the
-    integration design's ``session.resolve`` (CR-2026-106, Phase 3).
+    host-agnostic "who is this session?" primitive.
 
     Decodes the token and loads the principal. Returns a ``ResolvedSession``
     (carrying the ``Principal`` and the decoded ``SessionPayload``) on success,

@@ -1,4 +1,4 @@
-"""Stele identity row models (CR-2026-104 Phase 1; CR-2026-109 Phase 6).
+"""Stele identity row models.
 
 Holds **only** ``SteleBase`` (``stele.base``) rows — the tables a standalone
 Stele ships, with no host row and no outward foreign key:
@@ -8,19 +8,8 @@ Stele ships, with no host row and no outward foreign key:
   and ``RecoveryCodeRow`` -> ``recovery_codes``, whose ``person_id`` foreign keys
   point *inward* at ``principals.id`` (intra-Stele).
 
-CR-2026-112 (CR-C) emptied the host side out of this module: the former
-``PersonRow`` identity class was reduced to a persons-table FK-target stub and
-``HostAccountRow`` was relocated, both to ``persons/models.py`` on the shared
-``loomworks.identity_base`` Base, where the host-FK tables live. This module no
-longer imports that Base -- it is the Phase-7 precondition (Stele models stand
-alone on ``SteleBase``).
-
-``principals`` is created by migration 0085, seeded from the existing ``persons``
-rows. Since CR-C (migration 0090) ``principals`` is the identity **write-source**
-and ``persons`` is the reverse mirror (an ``AFTER INSERT OR UPDATE`` trigger on
-``principals`` keeps ``persons`` in sync) -- still standing only for CR-B's
-host-FK retarget. No ORM ``relationship()`` is used; all links are string-target
-foreign keys, and no FK crosses the persons/Stele boundary at the ORM level.
+No ORM ``relationship()`` is used; all links are string-target foreign keys, and
+no foreign key crosses out of Stele.
 """
 from __future__ import annotations
 
@@ -46,14 +35,12 @@ from stele.base import Base as SteleBase
 
 
 class PrincipalRow(SteleBase):
-    """The Stele-owned principal — identity + auth columns only (Phase 6).
+    """The Stele-owned principal — identity + auth columns only.
 
-    The standalone identity row (CR-2026-109, D1 = own-its-own-table): it
-    carries the 7 principal columns, and the 2 identity foreign keys point
-    *inward* at its ``id``. During the expand window these columns are also
-    still present on ``persons`` and kept in sync by the migration-0085 mirror
-    trigger; principal reads resolve from here. ``host_account`` (the
-    lifecycle/policy columns) is the host-side sibling at the same ``id``.
+    The standalone identity row: it carries the 7 principal columns, and the 2
+    credential foreign keys point *inward* at its ``id``. It carries no
+    lifecycle/policy/comms columns — those are a host concern, kept on the host
+    side at the same ``id``.
     """
 
     __tablename__ = "principals"

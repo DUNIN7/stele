@@ -1,11 +1,9 @@
-"""Principal creation and lookup (Phase 14).
+"""Principal creation and lookup.
 
 The ``Principal`` identity view and create/get helpers; the substrate's
 primary identity surface. No credentials are touched here — passkeys, TOTP,
-and recovery codes are added via dedicated endpoints (Steps 3, 5).
-
-The signup orchestration (Step 3) coordinates the full flow; this
-module is the persistence layer.
+and recovery codes are added via their own modules. This module is the
+persistence layer; the host orchestrates the full sign-up flow over it.
 """
 from __future__ import annotations
 
@@ -25,22 +23,13 @@ from stele.models import PrincipalRow
 
 
 class Principal(BaseModel):
-    """Pure-principal read view (Phase 6b, CR-2026-110).
+    """Pure-principal read view.
 
     The identity surface of a principal — id, name, and the auth lifecycle
-    timestamps — and **nothing host-side**. This is the view standalone Stele
-    ships: it maps from ``PrincipalRow`` (Stele's own Base) and carries no
-    lifecycle/policy/comms columns (those live on the host ``HostAccount``
-    view). It never carries credentials — ``totp_secret`` is row-only and is
-    deliberately absent here (the no-credentials invariant, governed by
-    ``test_person_pydantic_does_not_carry_totp_secret``).
-
-    Step 3.7 (CR-2026-110): the transitional ``Person`` shim has been retired
-    and collapsed into this view. The collapse was superset-safe — ``Person``
-    was the strict subset ``{id, display_name, created_at, updated_at}``;
-    ``Principal`` adds the two ``Optional`` auth-lifecycle timestamps below,
-    which no reader reads off the view, so the ``Person → Principal`` swap
-    added fields without changing any consumer's behaviour.
+    timestamps — and **nothing host-side**. It maps from ``PrincipalRow`` and
+    carries no lifecycle/policy/comms columns (those are a host concern). It
+    never carries credentials — ``totp_secret`` is row-only and is deliberately
+    absent here (the no-credentials invariant).
     """
 
     model_config = ConfigDict(frozen=True, from_attributes=True)
@@ -65,9 +54,8 @@ async def create_principal(
     """Create a principal record.
 
     display_name is required (and must be non-empty). Mints the identity
-    row only. CR-2026-111 C2: email/mobile (host columns) were removed from
-    this Stele mint — they live on ``host_account`` and are set host-side,
-    never by Stele (the boundary: stele/ touches no host data).
+    row only — no host columns (email/mobile and the like are a host concern,
+    set host-side; Stele touches no host data).
 
     Does not create credentials. The signup orchestration adds passkeys,
     TOTP, and recovery codes after the row exists.
@@ -83,12 +71,10 @@ async def create_principal(
     await db.flush()
     await db.refresh(row)
 
-    # NOTE (CR-2026-107 Phase 4 §2.1): the system saved-filter seed that
-    # used to live here (`seed_system_defined_filters`) was relocated to
-    # the host `onboard` operation, where account setup belongs. This
-    # leaves `create_principal` a bare credential-less mint (no passkey, TOTP,
-    # recovery, or onboarding). It is kept separate from `mint_principal`
-    # (the full-credential production mint) — they share only this row.
+    # `create_principal` is a bare credential-less mint (no passkey, TOTP,
+    # recovery, or onboarding) — account setup is a host concern. It is kept
+    # separate from `mint_principal` (the full-credential production mint);
+    # they share only this row.
     return Principal.model_validate(row)
 
 
@@ -102,20 +88,17 @@ async def mint_principal(
     now: datetime,
     db: AsyncSession,
 ) -> tuple[PrincipalRow, list[str]]:
-    """Mint a full principal — the Stele production sign-up primitive
-    (CR-2026-107, Phase 4 §2.1).
+    """Mint a full principal — the production sign-up primitive.
 
-    A verbatim relocation of the principal-creation work that lived inline
-    at ``signup.py:255-284``: encrypt the TOTP secret, mint the ``PersonRow``
-    (principal columns only — CR-2026-111 C2 stripped the host columns;
-    onboarded-state + email/mobile are host_account, set host-side by the
-    caller), add the WebAuthn passkey, and generate + store the recovery
-    codes. Returns the row and the plaintext recovery codes (shown once).
+    Encrypt the TOTP secret, mint the principal row (principal columns only —
+    host columns like onboarded-state/email/mobile are set host-side by the
+    caller), add the WebAuthn passkey, and generate + store the recovery codes.
+    Returns the row and the plaintext recovery codes (shown once).
 
     It does NOT seed saved filters, create any membership/org/personal
-    engagement or credit, or issue a session — those are the host
-    ``onboard`` phase. It commits NOTHING; the host owns the transaction
-    boundary and commits the mint phase.
+    engagement or credit, or issue a session — those are host concerns. It
+    commits NOTHING; the host owns the transaction boundary and commits the
+    mint phase.
     """
     totp_secret_enc = kek_encrypt(
         totp_secret_plaintext,
@@ -124,7 +107,7 @@ async def mint_principal(
     person = PrincipalRow(
         display_name=display_name,
         totp_secret=totp_secret_enc,
-        first_login_at=now,  # signup IS the first login (CR §13.3)
+        first_login_at=now,  # signup is the first login
     )
     db.add(person)
     await db.flush()
@@ -154,13 +137,7 @@ async def get_principal_by_id(
     person_id: UUID,
     db: AsyncSession,
 ) -> Principal | None:
-    """Resolve a principal by id. Returns None if not found.
-
-    Step 3.7 (CR-2026-110): the former ``get_person_by_id`` and
-    ``get_principal_and_person_by_id`` collapsed into this single resolver
-    once the ``Person`` shim retired — both projected the same identity off
-    one ``PersonRow`` load; the session resolver no longer needs a twin view.
-    """
+    """Resolve a principal by id. Returns None if not found."""
     result = await db.execute(
         select(PrincipalRow).where(PrincipalRow.id == person_id)
     )

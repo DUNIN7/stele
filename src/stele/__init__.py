@@ -2,8 +2,8 @@
 
 Principals (UUID identity), WebAuthn passkeys, TOTP, and recovery codes, with a
 KEK-direct secret floor and an independently-runnable migration set. This is the
-package's public SDK surface (Phase 7 P7-2, CR-2026-115): the primitives below,
-plus a **mountable FastAPI router** at ``stele.router``.
+package's public SDK surface: the primitives below, plus a **mountable FastAPI
+router** at ``stele.router``.
 
 ## The primitives (always available — no web framework needed)
 
@@ -43,9 +43,8 @@ router that assumed a specific host's authorization would not be mountable elsew
 
 The injection contract has **2 required slots** (``provide_db_session``,
 ``provide_webauthn_config``) and 5 optional/defaulted slots. The passkey-enrollment
-ceremony is Stele's own (lifted into ``stele.webauthn`` at P7-3, CR-2026-116) — no
-host ceremony callables to supply. The P7-3 reference app proves the mount is
-satisfiable, not merely listable.
+ceremony is Stele's own (in ``stele.webauthn``) — no host ceremony callables to
+supply. The reference app under ``examples/`` shows a complete, runnable mount.
 """
 from __future__ import annotations
 
@@ -162,7 +161,7 @@ __all__ = [
     # totp
     "begin_totp_rotation", "confirm_totp_rotation", "PersonTotpCodeInvalid",
     "PersonTotpProvisioning",
-    # webauthn (+ the add-passkey enrollment ceremony, lifted here at P7-3)
+    # webauthn (+ the add-passkey enrollment ceremony)
     "WebauthnConfig", "begin_registration", "verify_registration",
     "begin_authentication", "verify_authentication", "RegistrationChallenge",
     "AuthenticationChallenge", "VerifiedCredentialData", "VerifiedAssertionData",
