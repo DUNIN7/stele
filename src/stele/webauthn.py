@@ -15,8 +15,13 @@ without having to drive a real authenticator.
 from __future__ import annotations
 
 import os
+import secrets
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import Any, Optional
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from webauthn import (
     generate_authentication_options as _gen_auth_options,
@@ -30,6 +35,8 @@ from webauthn.helpers.structs import (
     PublicKeyCredentialDescriptor,
     UserVerificationRequirement,
 )
+
+from stele import credentials as credentials_registry
 
 
 @dataclass(frozen=True)
@@ -226,3 +233,145 @@ def _extract_transports(credential: dict[str, Any]) -> Optional[list[str]]:
     if isinstance(transports, list) and all(isinstance(t, str) for t in transports):
         return list(transports)
     return None
+
+
+# ===========================================================================
+# Add-passkey enrollment ceremony (lifted from the engine's persons.signup at
+# P7-3, CR-2026-116). An already-signed-in person registers an additional
+# passkey: ``add_passkey_begin`` issues the WebAuthn challenge and parks the
+# pending state; ``add_passkey_complete`` verifies the attestation and persists
+# the new credential. The ceremony is Stele's — it is a thin orchestration over
+# this module's own ``begin_registration`` / ``verify_registration`` plus
+# ``stele.credentials.add_credential`` — so its companion pending store lives
+# here too (it was a host-injected slot pre-P7-3; the slot is gone). No host
+# concepts cross: ``person_id`` is the principal id.
+# ===========================================================================
+
+ADD_PASSKEY_PENDING_TTL = timedelta(minutes=5)
+
+
+class PasskeyEnrollmentNotFound(Exception):
+    """An unknown or expired add-passkey handle. The mount maps this to 404."""
+
+
+class PasskeyEnrollmentError(Exception):
+    """An add-passkey verification failure. The mount maps this to 400."""
+
+
+@dataclass
+class _PendingAddPasskey:
+    """In-flight add-passkey ceremony state. ``person_id`` is the principal id —
+    identity-only, no host concepts; the mount binds it against the
+    authenticated caller before persisting."""
+
+    person_id: UUID
+    challenge: bytes
+    user_handle: bytes
+    options_json: str
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
+class AddPasskeyBeginResult:
+    add_id: str
+    options_json: str
+
+
+class PendingAddPasskeyStore:
+    """In-process pending store for the add-passkey ceremony. A single process
+    holds one; a future multi-process host swaps a database-backed
+    implementation behind the same shape."""
+
+    def __init__(self) -> None:
+        self._records: dict[str, _PendingAddPasskey] = {}
+
+    def put(self, add_id: str, record: _PendingAddPasskey) -> None:
+        self._records[add_id] = record
+
+    def get(self, add_id: str, *, now: datetime) -> _PendingAddPasskey:
+        record = self._records.get(add_id)
+        if record is None:
+            raise PasskeyEnrollmentNotFound(f"No pending add-passkey {add_id}")
+        if record.expires_at <= now:
+            self._records.pop(add_id, None)
+            raise PasskeyEnrollmentNotFound(
+                f"Pending add-passkey {add_id} has expired"
+            )
+        return record
+
+    def discard(self, add_id: str) -> None:
+        self._records.pop(add_id, None)
+
+
+# The ceremony's Stele-internal pending store. The mountable router
+# (``stele.api``) reaches this singleton directly; a host driving the ceremony
+# outside the router may pass its own store instance via the ``store`` kwarg.
+pending_add_passkey_store = PendingAddPasskeyStore()
+
+
+async def add_passkey_begin(
+    *,
+    person_id: UUID,
+    person_display_name: str,
+    person_email: Optional[str],
+    config: WebauthnConfig,
+    existing_credential_ids: list[bytes],
+    now: datetime,
+    store: PendingAddPasskeyStore | None = None,
+) -> AddPasskeyBeginResult:
+    """Begin a registration ceremony for an additional passkey on an
+    already-signed-in person. ``existing_credential_ids`` populates the WebAuthn
+    excludeCredentials list so the same authenticator cannot register twice on
+    the same person. Defaults to the module pending store."""
+    store = store if store is not None else pending_add_passkey_store
+    challenge = begin_registration(
+        config=config,
+        user_name=person_email or person_display_name,
+        user_display_name=person_display_name,
+        exclude_credentials=existing_credential_ids,
+    )
+    add_id = f"add_{secrets.token_urlsafe(24)}"
+    store.put(
+        add_id,
+        _PendingAddPasskey(
+            person_id=person_id,
+            challenge=challenge.challenge,
+            user_handle=challenge.user_handle,
+            options_json=challenge.options_json,
+            expires_at=now + ADD_PASSKEY_PENDING_TTL,
+        ),
+    )
+    return AddPasskeyBeginResult(add_id=add_id, options_json=challenge.options_json)
+
+
+async def add_passkey_complete(
+    *,
+    add_id: str,
+    credential: dict,
+    config: WebauthnConfig,
+    db: AsyncSession,
+    now: datetime,
+    display_name: Optional[str] = None,
+    store: PendingAddPasskeyStore | None = None,
+) -> UUID:
+    """Verify the attestation and persist the new credential bound to the
+    in-flight person. Returns the new credential's id. Defaults to the module
+    pending store."""
+    store = store if store is not None else pending_add_passkey_store
+    record = store.get(add_id, now=now)
+    verified = verify_registration(
+        config=config,
+        credential=credential,
+        expected_challenge=record.challenge,
+    )
+    new_credential = await credentials_registry.add_credential(
+        person_id=record.person_id,
+        credential_id=verified.credential_id,
+        public_key=verified.public_key,
+        sign_count=verified.sign_count,
+        transports=verified.transports,
+        display_name=display_name,
+        db=db,
+    )
+    store.discard(add_id)
+    return new_credential.id
