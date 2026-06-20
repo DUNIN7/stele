@@ -1,0 +1,48 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: stele
+          POSTGRES_PASSWORD: stele
+          POSTGRES_DB: stele_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U stele -d stele_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # The conftest migrate-once fixture and the suite both read this. The GHA
+      # Postgres service is reachable on localhost:5432 (the local-dev default is
+      # 5433). STELE_SECRET_KEY is NOT set here — the suite generates its own
+      # Fernet key in-test, so no secret is needed in CI.
+      STELE_DATABASE_URL: postgresql+asyncpg://stele:stele@localhost:5432/stele_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Stele with test extras
+        run: pip install -e ".[test]"
+
+      # No separate `alembic upgrade head` step: the conftest _migrated_database
+      # fixture runs the migration once against STELE_DATABASE_URL, so pytest
+      # stands the 3-table baseline up itself.
+      - name: Run the test suite
+        run: pytest -q
