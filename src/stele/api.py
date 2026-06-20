@@ -29,7 +29,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from json import loads as json_loads
-from typing import Any, Awaitable, Callable, Optional, Protocol
+from typing import Any, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -42,51 +42,18 @@ from stele import recovery as recovery_codes
 from stele.kek import EnvKeyEncryptionKeyProvider
 from stele.registry import Principal
 from stele.session import resolve_session
-from stele.webauthn import WebauthnConfig
+from stele.webauthn import (
+    PasskeyEnrollmentError,
+    PasskeyEnrollmentNotFound,
+    WebauthnConfig,
+    add_passkey_begin,
+    add_passkey_complete,
+    pending_add_passkey_store,
+)
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-# ===========================================================================
-# Injected-shape protocols (what a host-supplied object must structurally
-# provide; Stele reads only these members, never a host-specific type).
-# ===========================================================================
-
-
-class AddPasskeyPending(Protocol):
-    """The in-progress add-passkey record the store yields — Stele reads only
-    ``person_id`` (to bind the registration to the authenticated caller)."""
-
-    person_id: UUID
-
-
-class AddPasskeyStore(Protocol):
-    """The host's pending add-passkey store. Stele calls only ``get``."""
-
-    def get(self, add_id: str, *, now: datetime) -> AddPasskeyPending: ...
-
-
-class AddPasskeyBeginResult(Protocol):
-    """What the host's ``add_passkey_begin`` ceremony returns — Stele reads only
-    ``add_id`` (the opaque handle) and ``options_json`` (the browser options)."""
-
-    add_id: str
-    options_json: str
-
-
-# The two host-owned ceremony callables (kwargs-only, per the engine's shape).
-AddPasskeyBeginFn = Callable[..., Awaitable[AddPasskeyBeginResult]]
-AddPasskeyCompleteFn = Callable[..., Awaitable[UUID]]
-
-
-class PasskeyEnrollmentNotFound(Exception):
-    """The host ceremony raises this for an unknown/expired add handle → 404."""
-
-
-class PasskeyEnrollmentError(Exception):
-    """The host ceremony raises this for a verification failure → 400."""
 
 
 # ===========================================================================
@@ -121,14 +88,6 @@ async def provide_webauthn_config() -> WebauthnConfig:
     / rp_origin)."""
     raise NotImplementedError(
         "Mount stele.api: override provide_webauthn_config to return a WebauthnConfig."
-    )
-
-
-async def provide_add_passkey_store() -> AddPasskeyStore:
-    """Slot — the host's pending add-passkey store (the add_passkey ceremony's
-    companion). No default."""
-    raise NotImplementedError(
-        "Mount stele.api: override provide_add_passkey_store to return the store."
     )
 
 
@@ -176,23 +135,6 @@ async def provide_person_email(
     no host_account view shape. A host that wants the email in the authenticator
     label overrides this to look it up for ``principal.id``."""
     return None
-
-
-def provide_add_passkey_begin() -> AddPasskeyBeginFn:
-    """Slot — the host's ``add_passkey_begin`` ceremony (kwargs: person_id,
-    person_display_name, person_email, config, existing_credential_ids, store,
-    now). No default — host-owned WebAuthn-registration code (§4 injection slot)."""
-    raise NotImplementedError(
-        "Mount stele.api: override provide_add_passkey_begin to return the ceremony."
-    )
-
-
-def provide_add_passkey_complete() -> AddPasskeyCompleteFn:
-    """Slot — the host's ``add_passkey_complete`` ceremony (kwargs: add_id,
-    credential, config, store, db, now, display_name) → the new passkey id."""
-    raise NotImplementedError(
-        "Mount stele.api: override provide_add_passkey_complete to return the ceremony."
-    )
 
 
 # ===========================================================================
@@ -263,9 +205,7 @@ async def passkey_begin(
     principal: Principal = Depends(resolve_current_principal),
     person_email: Optional[str] = Depends(provide_person_email),
     db: AsyncSession = Depends(provide_db_session),
-    store: AddPasskeyStore = Depends(provide_add_passkey_store),
     config: WebauthnConfig = Depends(provide_webauthn_config),
-    add_passkey_begin: AddPasskeyBeginFn = Depends(provide_add_passkey_begin),
 ) -> PasskeyBeginResponse:
     existing = await credentials_registry.list_credentials_for_person(
         person_id=principal.id, db=db
@@ -276,7 +216,6 @@ async def passkey_begin(
         person_email=person_email,
         config=config,
         existing_credential_ids=[c.credential_id for c in existing],
-        store=store,
         now=_now(),
     )
     return PasskeyBeginResponse(add_id=result.add_id, options=json_loads(result.options_json))
@@ -287,16 +226,15 @@ async def passkey_complete(
     body: PasskeyCompleteRequest,
     principal: Principal = Depends(resolve_current_principal),
     db: AsyncSession = Depends(provide_db_session),
-    store: AddPasskeyStore = Depends(provide_add_passkey_store),
     config: WebauthnConfig = Depends(provide_webauthn_config),
-    add_passkey_complete: AddPasskeyCompleteFn = Depends(provide_add_passkey_complete),
 ) -> PasskeyCompleteResponse:
     now = _now()
     # Security-critical bind: the add_id is a capability token, but persisting a
     # credential must depend on the token AND the session — a leaked add_id can
-    # never bind a passkey to the wrong account.
+    # never bind a passkey to the wrong account. The ceremony's pending store is
+    # Stele-internal (post-P7-3 lift); the router reaches it directly.
     try:
-        pending = store.get(body.add_id, now=now)
+        pending = pending_add_passkey_store.get(body.add_id, now=now)
     except PasskeyEnrollmentNotFound as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     if pending.person_id != principal.id:
@@ -309,7 +247,6 @@ async def passkey_complete(
             add_id=body.add_id,
             credential=body.credential,
             config=config,
-            store=store,
             db=db,
             now=now,
             display_name=body.display_name,

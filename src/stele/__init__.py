@@ -27,11 +27,8 @@ primitive routes (passkey enrollment, recovery codes, TOTP rotation) like this::
 
     # --- the injection contract (override via FastAPI dependency_overrides) ---
     # Required (no safe default — raise until supplied):
-    app.dependency_overrides[stele.provide_db_session]        = my_db_session_dep
-    app.dependency_overrides[stele.provide_webauthn_config]   = my_webauthn_config_dep
-    app.dependency_overrides[stele.provide_add_passkey_store] = my_store_dep
-    app.dependency_overrides[stele.provide_add_passkey_begin]    = lambda: my_add_passkey_begin
-    app.dependency_overrides[stele.provide_add_passkey_complete] = lambda: my_add_passkey_complete
+    app.dependency_overrides[stele.provide_db_session]      = my_db_session_dep
+    app.dependency_overrides[stele.provide_webauthn_config] = my_webauthn_config_dep
     # Override to carry YOUR policy gate (the default only checks the session + 2FA):
     app.dependency_overrides[stele.resolve_current_principal] = my_principal_resolver
     # Optional:
@@ -44,9 +41,11 @@ the principal's own credentials). The host *authorizes* (*what-here*) — the
 ``resolve_current_principal`` slot is where the host injects its policy. A mountable
 router that assumed a specific host's authorization would not be mountable elsewhere.
 
-The injection contract has **3 required slots, 5 optional/defaulted, and 2 host
-ceremony callables** (passkey enrollment) — wide enough that a real adopter must do
-work; the P7-3 reference app proves it is satisfiable, not merely listable.
+The injection contract has **2 required slots** (``provide_db_session``,
+``provide_webauthn_config``) and 5 optional/defaulted slots. The passkey-enrollment
+ceremony is Stele's own (lifted into ``stele.webauthn`` at P7-3, CR-2026-116) — no
+host ceremony callables to supply. The P7-3 reference app proves the mount is
+satisfiable, not merely listable.
 """
 from __future__ import annotations
 
@@ -94,11 +93,17 @@ from stele.person_totp import (
     confirm_totp_rotation,
 )
 from stele.webauthn import (
+    AddPasskeyBeginResult,
     AuthenticationChallenge,
+    PasskeyEnrollmentError,
+    PasskeyEnrollmentNotFound,
+    PendingAddPasskeyStore,
     RegistrationChallenge,
     VerifiedAssertionData,
     VerifiedCredentialData,
     WebauthnConfig,
+    add_passkey_begin,
+    add_passkey_complete,
     begin_authentication,
     begin_registration,
     verify_authentication,
@@ -124,15 +129,7 @@ _LAZY_API = {
     "provide_secret_key",
     "provide_db_session",
     "provide_webauthn_config",
-    "provide_add_passkey_store",
     "provide_person_email",
-    "provide_add_passkey_begin",
-    "provide_add_passkey_complete",
-    "AddPasskeyStore",
-    "AddPasskeyPending",
-    "AddPasskeyBeginResult",
-    "PasskeyEnrollmentNotFound",
-    "PasskeyEnrollmentError",
 }
 
 
@@ -165,10 +162,12 @@ __all__ = [
     # totp
     "begin_totp_rotation", "confirm_totp_rotation", "PersonTotpCodeInvalid",
     "PersonTotpProvisioning",
-    # webauthn
+    # webauthn (+ the add-passkey enrollment ceremony, lifted here at P7-3)
     "WebauthnConfig", "begin_registration", "verify_registration",
     "begin_authentication", "verify_authentication", "RegistrationChallenge",
     "AuthenticationChallenge", "VerifiedCredentialData", "VerifiedAssertionData",
+    "add_passkey_begin", "add_passkey_complete", "AddPasskeyBeginResult",
+    "PendingAddPasskeyStore", "PasskeyEnrollmentNotFound", "PasskeyEnrollmentError",
     # kek / crypto
     "EnvKeyEncryptionKeyProvider", "KeyEncryptionKeyProvider",
     "KeyEncryptionKeyUnavailableError", "kek_encrypt", "kek_decrypt",
@@ -177,8 +176,5 @@ __all__ = [
     "Base", "PrincipalRow", "WebauthnCredentialRow", "RecoveryCodeRow",
     # mountable router + injection contract (lazy)
     "router", "resolve_current_principal", "extract_token", "provide_secret_key",
-    "provide_db_session", "provide_webauthn_config", "provide_add_passkey_store",
-    "provide_person_email", "provide_add_passkey_begin",
-    "provide_add_passkey_complete", "AddPasskeyStore", "AddPasskeyPending",
-    "AddPasskeyBeginResult", "PasskeyEnrollmentNotFound", "PasskeyEnrollmentError",
+    "provide_db_session", "provide_webauthn_config", "provide_person_email",
 ]
