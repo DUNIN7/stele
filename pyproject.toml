@@ -23,9 +23,24 @@ dependencies = [
     "fastapi==0.135.3",             # the mountable primitive router (stele.api) — P7-2
 ]
 
+[project.optional-dependencies]
+# Test surface (CR-2026-117). Ranges, not == pins: the test tools are dev-only and
+# never ship in the wheel, so they track current rather than the engine's lockstep.
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "httpx>=0.27",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/stele"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
