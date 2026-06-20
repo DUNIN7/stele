@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timedelta, timezone
+from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 import bcrypt
@@ -194,11 +195,27 @@ async def test_regenerate_replaces_the_set(db):
 # ---------------------------------------------------------------------------
 # person_totp.py (async, db)
 # ---------------------------------------------------------------------------
+def _issuer_of(provisioning_uri: str) -> str:
+    return parse_qs(urlparse(provisioning_uri).query)["issuer"][0]
+
+
 async def test_begin_totp_rotation_returns_provisioning(db):
     person = await create_principal(display_name="TOTP Begin", db=db)
     prov = await begin_totp_rotation(person_id=person.id, db=db)
     assert prov.secret
     assert prov.provisioning_uri.startswith("otpauth://")
+
+
+async def test_begin_totp_rotation_default_issuer_is_stele(db):
+    person = await create_principal(display_name="Issuer Default", db=db)
+    prov = await begin_totp_rotation(person_id=person.id, db=db)
+    assert _issuer_of(prov.provisioning_uri) == "Stele"
+
+
+async def test_begin_totp_rotation_honors_issuer_override(db):
+    person = await create_principal(display_name="Issuer Override", db=db)
+    prov = await begin_totp_rotation(person_id=person.id, db=db, issuer_name="My App")
+    assert _issuer_of(prov.provisioning_uri) == "My App"
 
 
 async def test_confirm_totp_rotation_good_code_writes_secret(db):

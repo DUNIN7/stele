@@ -24,8 +24,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from stele.kek import EnvKeyEncryptionKeyProvider, kek_encrypt
 from stele.models import PrincipalRow
 
-ISSUER_NAME = "Loomworks"
-
 
 class PersonTotpCodeInvalid(Exception):
     """The supplied code did not verify against the new secret; the rotate is
@@ -46,10 +44,15 @@ async def begin_totp_rotation(
     *,
     person_id: UUID,
     db: AsyncSession,
+    issuer_name: str = "Stele",
 ) -> PersonTotpProvisioning:
     """Generate a fresh TOTP secret + provisioning URI for a person WITHOUT
     writing the live ``totp_secret`` column. The caller holds the secret until
     :func:`confirm_totp_rotation` verifies a code against it.
+
+    ``issuer_name`` is the label the authenticator app shows for the account; it
+    defaults to ``"Stele"`` and a host passes its own (e.g. the WebAuthn
+    relying-party name) so the issuer reflects the host, not Stele.
 
     Raises:
         ValueError: the person row does not exist.
@@ -62,7 +65,7 @@ async def begin_totp_rotation(
 
     secret = pyotp.random_base32()
     provisioning_uri = pyotp.TOTP(secret).provisioning_uri(
-        name=row.display_name, issuer_name=ISSUER_NAME
+        name=row.display_name, issuer_name=issuer_name
     )
     return PersonTotpProvisioning(secret=secret, provisioning_uri=provisioning_uri)
 

@@ -315,8 +315,11 @@ async def recovery_codes_status(
 async def totp_rotate_begin(
     principal: Principal = Depends(resolve_current_principal),
     db: AsyncSession = Depends(provide_db_session),
+    config: WebauthnConfig = Depends(provide_webauthn_config),
 ) -> TotpRotateBeginResponse:
-    result = await person_totp.begin_totp_rotation(person_id=principal.id, db=db)
+    result = await person_totp.begin_totp_rotation(
+        person_id=principal.id, db=db, issuer_name=config.rp_name
+    )
     return TotpRotateBeginResponse(secret=result.secret, provisioning_uri=result.provisioning_uri)
 
 

@@ -136,3 +136,27 @@ async def test_full_round_trip(db, mounted):
         await client.post("/auth/logout")
         who = (await client.get("/auth/whoami")).json()
         assert who["authenticated"] is False
+
+
+async def test_mounted_totp_rotate_issuer_is_rp_name(db, mounted):
+    """The mounted /totp/rotate/begin route carries the host's WebauthnConfig.rp_name
+    as the authenticator issuer — the seam end-to-end through the mount (not 'Stele',
+    not a hardcoded brand)."""
+    from urllib.parse import parse_qs, urlparse
+
+    app, cid = mounted
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url=_RP_ORIGIN) as client:
+        begin = (await client.post("/auth/signup/begin", json={"display_name": "Rotate RP"})).json()
+        await client.post(
+            "/auth/signup/complete",
+            json={
+                "signup_id": begin["signup_id"],
+                "credential": _credential(cid),
+                "totp_code": pyotp.TOTP(begin["totp_secret"]).now(),
+            },
+        )
+        r = await client.post("/me/security/totp/rotate/begin")
+        assert r.status_code == 200, r.text
+        uri = r.json()["provisioning_uri"]
+        assert parse_qs(urlparse(uri).query)["issuer"][0] == "Stele Test RP"
