@@ -2,10 +2,64 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Stele reference host</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-inline-size: 40rem; margin: 2rem auto; padding-inline: 1rem; line-height: 1.5; }
+      section { border: 1px solid #ccc; border-radius: 8px; padding: 1rem; margin-block: 1rem; }
+      h2 { margin-block-start: 0; }
+      input, button { font: inherit; padding: 0.4rem 0.6rem; margin-block: 0.2rem; }
+      button { cursor: pointer; }
+      #log { background: #111; color: #0f0; padding: 0.75rem; border-radius: 6px; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 0.85rem; min-block-size: 6rem; }
+      .hidden { display: none; }
+      code { background: #eee; padding: 0 0.25rem; border-radius: 3px; }
+      ol.codes li { font-family: ui-monospace, monospace; }
+    </style>
   </head>
   <body>
     <h1>Stele reference host</h1>
-    <p>The reference app is running. The browser WebAuthn ceremony front loads next (P7-3 §3).</p>
+    <p>A real passkey ceremony against a mounted <code>stele.router</code>. No email is ever asked for — sign-in keys on credentials only.</p>
+
+    <section id="signup-section">
+      <h2>Sign up</h2>
+      <label>Display name <input id="signup-name" placeholder="Ada Lovelace" /></label>
+      <button id="signup-btn">Register a passkey</button>
+      <div id="signup-totp" class="hidden">
+        <p>Add this secret to your authenticator app, then enter a code:</p>
+        <p><code id="signup-secret"></code></p>
+        <label>Authenticator code <input id="signup-code" inputmode="numeric" placeholder="123456" /></label>
+        <button id="signup-finish-btn">Finish sign up</button>
+      </div>
+      <div id="signup-codes" class="hidden">
+        <p><strong>Recovery codes</strong> — saved once, store them safely:</p>
+        <ol class="codes" id="recovery-codes"></ol>
+      </div>
+    </section>
+
+    <section id="login-section">
+      <h2>Log in</h2>
+      <button id="login-btn">Sign in with a passkey</button>
+      <div id="login-2fa" class="hidden">
+        <label>Authenticator code <input id="login-code" inputmode="numeric" placeholder="123456" /></label>
+        <button id="login-totp-btn">Verify code</button>
+        <span> or </span>
+        <label>recovery code <input id="login-recovery" placeholder="xxxx-xxxx" /></label>
+        <button id="login-recovery-btn">Use recovery code</button>
+      </div>
+    </section>
+
+    <section id="account-section" class="hidden">
+      <h2>Account</h2>
+      <p id="whoami"></p>
+      <button id="list-btn">List my passkeys</button>
+      <button id="add-passkey-btn">Add another passkey</button>
+      <button id="logout-btn">Sign out</button>
+      <ul id="passkey-list"></ul>
+    </section>
+
+    <h2>Log</h2>
+    <div id="log"></div>
+
+    <script src="/static/app.js"></script>
   </body>
 </html>
