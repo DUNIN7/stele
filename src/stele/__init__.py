@@ -58,7 +58,6 @@ from stele.registry import (
     mint_principal,
 )
 from stele.session import (
-    COOKIE_NAME,
     ResolvedSession,
     SessionInvalid,
     SessionPayload,
@@ -149,7 +148,7 @@ __all__ = [
     "Principal", "mint_principal", "create_principal", "get_principal_by_id",
     # session
     "issue_session", "resolve_session", "decode_session", "encode_session",
-    "COOKIE_NAME", "ResolvedSession", "SessionPayload", "SessionInvalid",
+    "ResolvedSession", "SessionPayload", "SessionInvalid",
     # credentials
     "WebauthnCredential", "list_credentials_for_person", "add_credential",
     "remove_credential", "get_credential_by_credential_id", "update_sign_count",

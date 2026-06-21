@@ -29,7 +29,6 @@ from stele.registry import (
 )
 
 DEFAULT_SESSION_TTL = timedelta(hours=24)
-COOKIE_NAME = "loomworks_session"
 
 
 class SessionInvalid(Exception):
