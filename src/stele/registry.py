@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Principal creation and lookup.
 
 The ``Principal`` identity view and create/get helpers; the substrate's

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Stele's mountable primitive HTTP surface.
 
 A FastAPI ``APIRouter`` carrying the **direct-primitive** account-security

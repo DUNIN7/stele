@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """P117-3 — one ASGI round-trip through the real mounted reference host.
 
 Drives the §3 host-composed flow end-to-end (signup -> login by passkey+TOTP ->

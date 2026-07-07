@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """P117-2 — primitive unit tests for session, recovery, TOTP, credentials.
 
 Pure surfaces (session encode/decode/issue) run in-memory; async surfaces run

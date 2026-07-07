@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """Stele config generator — env-scaffolding only.
 
 Emits a ``.env`` template for a Stele mount to stdout:

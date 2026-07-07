@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Stele's own ``DeclarativeBase`` — the standalone identity ``MetaData``.
 
 This is the base the principal-side rows are mapped onto: ``principals`` and the

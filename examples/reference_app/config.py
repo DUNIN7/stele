@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Reference-app settings — read from the environment (the ``.env`` the config
 generator scaffolds; see ``examples/generate_env.py``).
 

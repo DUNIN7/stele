@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """The Stele reference host — a minimal standalone FastAPI app.
 
 What it demonstrates:

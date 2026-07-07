@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """TS-16 — CSRF (double-submit cookie) tests for the reference host's 7
 state-changing routes: signup/begin, signup/complete, login/begin,
 login/passkey, login/totp, login/recovery, logout.

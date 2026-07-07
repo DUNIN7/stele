@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """P117-1 smoke — the test plumbing is green: migration ran, the db fixture works,
 the async/session-loop wiring resolves end-to-end against a real Postgres."""
 from __future__ import annotations

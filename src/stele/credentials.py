@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Persistence layer for webauthn_credentials.
 
 Pure CRUD against the WebauthnCredentialRow ORM. The cryptographic

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Alembic environment for the standalone Stele migration set.
 
 Async (asyncpg) online migrations. The database URL is read from the

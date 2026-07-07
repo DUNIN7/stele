@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Recovery codes — generation, hashing, and single-use verification.
 
 Ten codes per person, eight characters each. The alphabet is uppercase

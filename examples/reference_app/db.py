@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Async database wiring for the reference app.
 
 A single async engine + session factory. ``provide_db_session`` is what the app

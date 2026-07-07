@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Person-scoped TOTP re-provisioning (rotate).
 
 The crypto path matches the one ``registry.mint_principal`` uses for a

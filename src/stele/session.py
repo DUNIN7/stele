@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Person-scoped session model.
 
 A session is a Fernet-encrypted JSON payload — signature and integrity

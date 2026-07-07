@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Stele — a standalone identity & authentication substrate.
 
 Principals (UUID identity), WebAuthn passkeys, TOTP, and recovery codes, with a

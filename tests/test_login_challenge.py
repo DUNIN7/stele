@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """TS-06 — unit tests for the core login-challenge ceremony (PendingLoginChallengeStore,
 login_challenge_begin, login_challenge_complete).
 

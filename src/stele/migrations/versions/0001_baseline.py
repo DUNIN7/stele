@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """baseline — Stele 3-table schema (principals, webauthn_credentials, recovery_codes)
 
 The consolidated baseline. One revision, ``down_revision = None``, building the

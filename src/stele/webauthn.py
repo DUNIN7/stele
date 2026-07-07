@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """WebAuthn registration and authentication helpers.
 
 Thin wrappers around the `webauthn` library. Stele does not implement

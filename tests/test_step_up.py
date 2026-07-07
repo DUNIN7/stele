@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """TS-14 — unit tests for the step-up freshness slot (require_fresh_session,
 _step_up_window). Constructs SessionPayload directly with a controlled
 created_at (rather than issue_session, which stamps real wall-clock time) so

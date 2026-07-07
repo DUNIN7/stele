@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """Stele identity row models.
 
 Holds **only** ``SteleBase`` (``stele.base``) rows — the tables a standalone

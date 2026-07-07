@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """TS-08 — unit tests for UV (user verification) policy threading.
 
 ``WebauthnConfig.user_verification`` (default ``PREFERRED``) drives both

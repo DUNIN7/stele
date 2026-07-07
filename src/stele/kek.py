@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """KEK (key-encryption key) — Stele's crypto floor.
 
 Stele has exactly one secret scope — the principal ``totp_secret`` — plus the

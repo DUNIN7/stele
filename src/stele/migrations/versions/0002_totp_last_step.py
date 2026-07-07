@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 """totp last step — persist last-accepted TOTP time-step per principal (TS-11 replay protection)
 
 Adds ``principals.totp_last_step`` (nullable integer). Stele has one TOTP
