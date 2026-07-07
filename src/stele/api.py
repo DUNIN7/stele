@@ -27,7 +27,8 @@ half-wired mount fails loudly at request time rather than silently.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import os
+from datetime import datetime, timedelta, timezone
 from json import loads as json_loads
 from typing import Any, Optional
 from uuid import UUID
@@ -123,6 +124,53 @@ async def resolve_current_principal(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Second factor not verified.",
+        )
+    return resolved.principal
+
+
+def _step_up_window() -> timedelta:
+    """Config seam for ``require_fresh_session`` — how fresh ``totp_verified``
+    must be for step-up-gated mutations. ``STELE_STEP_UP_WINDOW_SECONDS``,
+    default 900 (15 minutes), matching the ``STELE_`` env-var convention
+    (``STELE_SECRET_KEY`` et al. — see ``kek.py``)."""
+    return timedelta(seconds=int(os.environ.get("STELE_STEP_UP_WINDOW_SECONDS", "900")))
+
+
+async def require_fresh_session(
+    token: Optional[str] = Depends(extract_token),
+    secret_key: str = Depends(provide_secret_key),
+    db: AsyncSession = Depends(provide_db_session),
+) -> Principal:
+    """DEFAULTED step-up slot — a stricter sibling of ``resolve_current_principal``
+    for sensitive mutations (credential rotation/removal/addition, recovery-code
+    regeneration). Applies the same session-validity and ``totp_verified`` gate,
+    PLUS: rejects if the second factor was verified more than
+    ``STELE_STEP_UP_WINDOW_SECONDS`` ago (default 15 minutes), read from
+    ``SessionPayload.created_at``. Calls ``resolve_session`` directly rather than
+    depending on ``resolve_current_principal``, so overriding one slot never
+    silently changes the other's behavior.
+
+    The host OVERRIDES this whole slot the same way it overrides
+    ``resolve_current_principal`` — e.g. to change the window, or to layer in a
+    re-entry-of-credential ceremony (a heavier feature with its own UX; not
+    shipped here — TS-14 scope is a freshness window only)."""
+    resolved = await resolve_session(
+        token or "", secret_key=secret_key, now=_now(), db=db
+    )
+    if resolved is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required (no valid session).",
+        )
+    if not resolved.payload.totp_verified:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Second factor not verified.",
+        )
+    if _now() - resolved.payload.created_at > _step_up_window():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Session too old for this operation — please sign in again.",
         )
     return resolved.principal
 

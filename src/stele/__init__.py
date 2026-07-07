@@ -128,6 +128,7 @@ from stele.kek import (
 _LAZY_API = {
     "router",
     "resolve_current_principal",
+    "require_fresh_session",
     "extract_token",
     "provide_secret_key",
     "provide_db_session",
@@ -180,6 +181,7 @@ __all__ = [
     # ORM / migration
     "Base", "PrincipalRow", "WebauthnCredentialRow", "RecoveryCodeRow",
     # mountable router + injection contract (lazy)
-    "router", "resolve_current_principal", "extract_token", "provide_secret_key",
-    "provide_db_session", "provide_webauthn_config", "provide_person_email",
+    "router", "resolve_current_principal", "require_fresh_session", "extract_token",
+    "provide_secret_key", "provide_db_session", "provide_webauthn_config",
+    "provide_person_email",
 ]
