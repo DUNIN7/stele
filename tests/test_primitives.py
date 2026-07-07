@@ -10,6 +10,7 @@ confound the very counts under test. Passkey credentials are built from canned
 """
 from __future__ import annotations
 
+import asyncio
 import os
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
@@ -19,6 +20,7 @@ import bcrypt
 import pyotp
 import pytest
 from cryptography.fernet import Fernet
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from stele import credentials, recovery
 from stele.credentials import LastPasskeyError
@@ -179,6 +181,38 @@ async def test_verify_and_consume_is_single_use(db):
     assert await recovery.count_unused_recovery_codes(person_id=person.id, db=db) == recovery.DEFAULT_CODE_COUNT - 1
     assert await recovery.verify_and_consume_recovery_code(person_id=person.id, code=codes[0], db=db) is False
     assert await recovery.verify_and_consume_recovery_code(person_id=person.id, code="WRONGCOD", db=db) is False
+
+
+async def test_verify_and_consume_recovery_code_race_only_one_wins(db, engine):
+    """TS-13: two concurrent redemptions of the same code must not both
+    succeed. Uses two independent AsyncSessions — not two coroutines sharing
+    one session, which isn't concurrency-safe and wouldn't exercise a real
+    DB-level race — so Postgres's own row lock on the atomic UPDATE decides
+    the winner, not Python-level scheduling."""
+    person = await create_principal(display_name="Race Tester", db=db)
+    codes = recovery.generate_recovery_codes()
+    await recovery.store_recovery_codes(person_id=person.id, codes=codes, db=db)
+    await db.commit()  # must be visible to session_a/session_b's own connections
+
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async def _consume(session):
+        result = await recovery.verify_and_consume_recovery_code(
+            person_id=person.id, code=codes[0], db=session
+        )
+        # Commit immediately: releases the row lock the winning UPDATE holds
+        # so the other coroutine's blocked UPDATE can re-check and lose.
+        await session.commit()
+        return result
+
+    async with factory() as session_a, factory() as session_b:
+        results = await asyncio.gather(_consume(session_a), _consume(session_b))
+
+    assert sorted(results) == [False, True]
+    assert (
+        await recovery.count_unused_recovery_codes(person_id=person.id, db=db)
+        == recovery.DEFAULT_CODE_COUNT - 1
+    )
 
 
 async def test_regenerate_replaces_the_set(db):
