@@ -36,7 +36,7 @@ Override a slot through FastAPI's `dependency_overrides`, keyed on the slot obje
 | Slot | Required? | What you supply |
 |---|---|---|
 | `provide_db_session` | **Required** | Yields a request-scoped `AsyncSession` against your Postgres. Raises until supplied. |
-| `provide_webauthn_config` | **Required** | Returns `WebauthnConfig(rp_id, rp_name, rp_origin)` — your relying party. Raises until supplied. |
+| `provide_webauthn_config` | **Required** | Returns `WebauthnConfig(rp_id, rp_name, rp_origin, user_verification=PREFERRED)` — your relying party. Raises until supplied. |
 | `resolve_current_principal` | Optional | Default checks the session + second factor. Override to carry **your** authorization policy. |
 | `require_fresh_session` | Optional | Default checks the same as `resolve_current_principal`, **plus** rejects if the second factor was verified more than `STELE_STEP_UP_WINDOW_SECONDS` ago (default 900s / 15 min). Gates six sensitive-mutation routes — see below. Override to change the window, or your own step-up policy. |
 | `extract_token` | Optional | Default reads `Authorization: Bearer`. Override for cookie delivery (see below). |
@@ -63,6 +63,8 @@ from stele.webauthn import WebauthnConfig
 def my_rp_config():
     return WebauthnConfig(rp_id="localhost", rp_name="My App", rp_origin="http://localhost:8000")
 ```
+
+`user_verification` defaults to `PREFERRED` (requested but not enforced). Set it to `UserVerificationRequirement.REQUIRED` to reject any ceremony — registration or login — where the authenticator didn't perform user verification (PIN/biometric), not just user presence (a touch).
 
 ## Step-up: recent-second-factor required for sensitive mutations
 

@@ -41,11 +41,21 @@ from stele import credentials as credentials_registry
 @dataclass(frozen=True)
 class WebauthnConfig:
     """Relying-party configuration. Built once from settings at app
-    startup; passed explicitly to every helper for testability."""
+    startup; passed explicitly to every helper for testability.
+
+    `user_verification` sets the RP's UV policy for both ceremonies:
+    requested via `begin_registration`/`begin_authentication` and, when
+    `REQUIRED`, enforced server-side in `verify_registration`/
+    `verify_authentication` (the underlying library never enforces UV
+    unless told to, regardless of what was requested). Defaults to
+    `PREFERRED` to match prior behavior."""
 
     rp_id: str
     rp_name: str
     rp_origin: str
+    user_verification: UserVerificationRequirement = (
+        UserVerificationRequirement.PREFERRED
+    )
 
 
 @dataclass(frozen=True)
@@ -123,7 +133,7 @@ def begin_registration(
         user_name=user_name,
         user_display_name=user_display_name,
         authenticator_selection=AuthenticatorSelectionCriteria(
-            user_verification=UserVerificationRequirement.PREFERRED,
+            user_verification=config.user_verification,
         ),
         exclude_credentials=excluded,
     )
@@ -151,6 +161,9 @@ def verify_registration(
         expected_challenge=expected_challenge,
         expected_rp_id=config.rp_id,
         expected_origin=config.rp_origin,
+        require_user_verification=(
+            config.user_verification == UserVerificationRequirement.REQUIRED
+        ),
     )
     transports = _extract_transports(credential)
     return VerifiedCredentialData(
@@ -184,7 +197,7 @@ def begin_authentication(
     options = _gen_auth_options(
         rp_id=config.rp_id,
         allow_credentials=descriptors,
-        user_verification=UserVerificationRequirement.PREFERRED,
+        user_verification=config.user_verification,
     )
     return AuthenticationChallenge(
         challenge=options.challenge,
@@ -213,6 +226,9 @@ def verify_authentication(
         expected_origin=config.rp_origin,
         credential_public_key=credential_public_key,
         credential_current_sign_count=current_sign_count,
+        require_user_verification=(
+            config.user_verification == UserVerificationRequirement.REQUIRED
+        ),
     )
     return VerifiedAssertionData(
         credential_id=verified.credential_id,
