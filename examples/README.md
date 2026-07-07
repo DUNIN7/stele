@@ -24,7 +24,7 @@ docker --version
 python3 --version
 ```
 
-You should see a version number printed for each (Docker 24 or higher, Python 3.12 or higher). If either command says "not found," go back and reinstall it.
+You should see a version number printed for each (Docker 24 or higher, Python 3.12 or higher). If either command says "not found," go back and reinstall it. If `python3 --version` prints something *older* than 3.12 even though you just installed a newer one, see "If something goes wrong" below before continuing.
 
 ## Step 1 — Get the code
 
@@ -47,19 +47,9 @@ cd ~/Desktop/stele/examples
 docker compose up -d
 ```
 
-Wait about 10 seconds. You should see output ending in something like `Container examples-db-1  Started`. This started a small database running only inside Docker — it doesn't touch anything else on your computer, and you can throw it away later with no side effects.
+Wait about 10 seconds. You should see output ending in something like `Container examples-postgres-1  Started`. This started a small database running only inside Docker — it doesn't touch anything else on your computer, and you can throw it away later with no side effects.
 
-## Step 3 — Create your configuration file
-
-Still in the same Terminal window:
-
-```
-python3 generate_env.py > .env
-```
-
-Nothing prints — that's correct. This created a hidden file (`.env`) with a fresh, randomly generated security key and default settings. You don't need to open or edit it.
-
-## Step 4 — Set up a clean Python environment and install everything
+## Step 3 — Set up a clean Python environment and install everything
 
 ```
 python3 -m venv .venv
@@ -71,6 +61,16 @@ pip install -e "..[examples]"
 This last command takes 20-60 seconds and prints a lot of text — that's normal. When it finishes, you'll see a line ending in `Successfully installed ...`.
 
 **Important:** keep this same Terminal window open for every remaining step. If you close it or open a new one, you'll need to run `cd ~/Desktop/stele/examples && source .venv/bin/activate` again first.
+
+## Step 4 — Create your configuration file
+
+Still in the same Terminal window:
+
+```
+python3 generate_env.py > .env
+```
+
+Nothing prints — that's correct. This created a hidden file (`.env`) with a fresh, randomly generated security key and default settings. You don't need to open or edit it.
 
 ## Step 5 — Load your configuration into this Terminal session
 
@@ -130,7 +130,17 @@ docker compose down -v
 **"command not found: docker" or "command not found: python3"**
 Go back to "Before you start" — one of the two installs didn't finish. Restart Terminal after installing and try again.
 
-**Step 4 prints an error mentioning "no matches found"**
+**"python3 --version" shows something older than 3.12, even after installing Python 3.12+**
+Your Mac likely already had an older Python installed, and `python3` still points at that one instead of the version you just installed. Use `python3.12` explicitly when creating the virtual environment in Step 3:
+```
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -e "..[examples]"
+```
+Everything from here on runs inside that environment, so the rest of the guide works unchanged — you only need `python3.12` for this one command.
+
+**Step 3 prints an error mentioning "no matches found"**
 You likely typed `pip install -e ..[examples]` without the quotation marks. Use exactly `pip install -e "..[examples]"`, including the quotes.
 
 **Step 6 (`alembic upgrade head`) fails with "No 'script_location' key found"**
