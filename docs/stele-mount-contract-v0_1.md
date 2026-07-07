@@ -38,6 +38,7 @@ Override a slot through FastAPI's `dependency_overrides`, keyed on the slot obje
 | `provide_db_session` | **Required** | Yields a request-scoped `AsyncSession` against your Postgres. Raises until supplied. |
 | `provide_webauthn_config` | **Required** | Returns `WebauthnConfig(rp_id, rp_name, rp_origin)` — your relying party. Raises until supplied. |
 | `resolve_current_principal` | Optional | Default checks the session + second factor. Override to carry **your** authorization policy. |
+| `require_fresh_session` | Optional | Default checks the same as `resolve_current_principal`, **plus** rejects if the second factor was verified more than `STELE_STEP_UP_WINDOW_SECONDS` ago (default 900s / 15 min). Gates six sensitive-mutation routes — see below. Override to change the window, or your own step-up policy. |
 | `extract_token` | Optional | Default reads `Authorization: Bearer`. Override for cookie delivery (see below). |
 | `provide_secret_key` | Optional | Default reads `STELE_SECRET_KEY` from the environment. Override to inject your KEK another way. |
 | `provide_person_email` | Optional | Default `None`. Override only to put an email in the authenticator label — Stele never uses it as identity. |
@@ -62,6 +63,12 @@ from stele.webauthn import WebauthnConfig
 def my_rp_config():
     return WebauthnConfig(rp_id="localhost", rp_name="My App", rp_origin="http://localhost:8000")
 ```
+
+## Step-up: recent-second-factor required for sensitive mutations
+
+A session authenticated at any point up to its full lifetime (24 hours by default) can otherwise call any mounted route — including credential-changing ones. `require_fresh_session` closes that gap: it gates six mutation routes that change what can sign in as this principal — `passkeys/begin`, `passkeys/complete`, `DELETE passkeys/{id}`, `recovery-codes/regenerate`, `totp/rotate/begin`, `totp/rotate/confirm` — and additionally rejects the request if the second factor was verified more than `STELE_STEP_UP_WINDOW_SECONDS` ago (default 900 seconds / 15 minutes), read from the session's `created_at`. Read-only routes (`GET passkeys`, `GET recovery-codes`) and `provide_person_email` (a lookup, not a mutation) stay on the plain `resolve_current_principal` gate.
+
+This is a **freshness window**, not a re-entry-of-credential ceremony — it does not ask the caller to re-type a TOTP code or re-assert a passkey. If your app needs that heavier guarantee, override `require_fresh_session` with your own dependency.
 
 ## Delivery: cookie or bearer, your choice
 
