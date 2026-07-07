@@ -68,6 +68,10 @@ export STELE_DATABASE_URL="postgresql+asyncpg://USER@localhost:5432/YOUR_TEST_DB
 pytest
 ```
 
+## License
+
+Apache-2.0 — see [LICENSE](LICENSE).
+
 ---
 
 DUNIN7 — Done In Seven LLC — Miami, Florida
