@@ -19,6 +19,7 @@ import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Optional
+from urllib.parse import urlparse
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,6 +40,13 @@ from webauthn.helpers.structs import (
 from stele import credentials as credentials_registry
 
 
+class WebauthnConfigError(ValueError):
+    """Raised when a `WebauthnConfig` is constructed with a malformed
+    `rp_origin` or an `rp_id` that is not a valid registrable-domain suffix
+    of it. TS-09: a misconfigured RP pairing fails loud at construction
+    rather than surfacing as a mysterious ceremony failure at first use."""
+
+
 @dataclass(frozen=True)
 class WebauthnConfig:
     """Relying-party configuration. Built once from settings at app
@@ -57,6 +65,21 @@ class WebauthnConfig:
     user_verification: UserVerificationRequirement = (
         UserVerificationRequirement.PREFERRED
     )
+
+    def __post_init__(self) -> None:
+        parsed = urlparse(self.rp_origin)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            raise WebauthnConfigError(
+                f"rp_origin must be a well-formed http(s):// URL; got {self.rp_origin!r}."
+            )
+        origin_host = parsed.hostname
+        if not self.rp_id or not (
+            origin_host == self.rp_id or origin_host.endswith(f".{self.rp_id}")
+        ):
+            raise WebauthnConfigError(
+                f"rp_id {self.rp_id!r} is not a valid registrable-domain suffix of "
+                f"rp_origin's host {origin_host!r}."
+            )
 
 
 @dataclass(frozen=True)
