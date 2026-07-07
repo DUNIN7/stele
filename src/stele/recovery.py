@@ -7,10 +7,12 @@ letters and digits with the visually ambiguous characters removed
 Codes are stored as bcrypt hashes; the plaintext is returned exactly
 once (at signup, or when regenerated) and never again — there is no view
 path. Each code can be used once — verify sets `used_at` and rejects
-subsequent attempts with the same code. Regenerate rotates the set: the
-prior codes are soft-invalidated (`invalidated_at`) so they stop
-redeeming, and a fresh set is issued. A code is valid only when both
-`used_at` and `invalidated_at` are NULL.
+subsequent attempts with the same code, atomically: consumption is a
+single conditional UPDATE, not a fetch-then-mutate, so two concurrent
+redemptions of the same code cannot both succeed (TS-13). Regenerate
+rotates the set: the prior codes are soft-invalidated (`invalidated_at`)
+so they stop redeeming, and a fresh set is issued. A code is valid only
+when both `used_at` and `invalidated_at` are NULL.
 """
 from __future__ import annotations
 
@@ -77,13 +79,21 @@ async def verify_and_consume_recovery_code(
     db: AsyncSession,
 ) -> bool:
     """Match `code` against the person's *valid* recovery hashes; on a
-    match, mark `used_at` and return True. Returns False if no valid code
-    matches (already consumed, rotated out, or never issued).
+    match, atomically mark `used_at` and return True. Returns False if no
+    valid code matches (already consumed, rotated out, or never issued).
 
     Valid = not yet redeemed AND not rotated out (``used_at IS NULL AND
     invalidated_at IS NULL``). The ``invalidated_at`` filter is what makes
     regenerate actually revoke: a rotated-out code can no longer be redeemed
-    here — and this is the only place redemption happens."""
+    here — and this is the only place redemption happens.
+
+    TS-13: the bcrypt loop below identifies *which* row matches, but does
+    not itself consume it — two concurrent requests presenting the same
+    valid code could both pass this SELECT and its bcrypt check before
+    either writes. Consumption is a single conditional ``UPDATE ... WHERE
+    id = :id AND used_at IS NULL AND invalidated_at IS NULL RETURNING id``
+    against the one matched row; if it returns no row, a concurrent request
+    already won the race and this one is rejected as already-used."""
     result = await db.execute(
         select(RecoveryCodeRow).where(
             RecoveryCodeRow.person_id == person_id,
@@ -96,13 +106,24 @@ async def verify_and_consume_recovery_code(
     code_bytes = code.encode("utf-8")
     for row in rows:
         try:
-            if bcrypt.checkpw(code_bytes, row.code_hash.encode("utf-8")):
-                row.used_at = datetime.now(timezone.utc)
-                await db.flush()
-                return True
+            matched = bcrypt.checkpw(code_bytes, row.code_hash.encode("utf-8"))
         except ValueError:
             # Malformed hash — skip; treat as no match.
             continue
+        if not matched:
+            continue
+
+        consumed = await db.execute(
+            update(RecoveryCodeRow)
+            .where(
+                RecoveryCodeRow.id == row.id,
+                RecoveryCodeRow.used_at.is_(None),
+                RecoveryCodeRow.invalidated_at.is_(None),
+            )
+            .values(used_at=datetime.now(timezone.utc))
+            .returning(RecoveryCodeRow.id)
+        )
+        return consumed.first() is not None
     return False
 
 
