@@ -129,12 +129,42 @@ async def resolve_current_principal(
     return resolved.principal
 
 
+def _parse_step_up_window_seconds(raw: str) -> int:
+    """Parse and validate ``STELE_STEP_UP_WINDOW_SECONDS``'s raw string value.
+    Shared by the eager startup check below and ``_step_up_window`` itself, so
+    a garbage value gets the same clear error whether it's caught at import
+    time or (a host that mutates the env after import) at first per-call read."""
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(
+            "STELE_STEP_UP_WINDOW_SECONDS must be an integer number of seconds; "
+            f"got {raw!r}."
+        ) from exc
+    if value <= 0:
+        raise ValueError(
+            f"STELE_STEP_UP_WINDOW_SECONDS must be a positive integer; got {value}."
+        )
+    return value
+
+
 def _step_up_window() -> timedelta:
     """Config seam for ``require_fresh_session`` — how fresh ``totp_verified``
     must be for step-up-gated mutations. ``STELE_STEP_UP_WINDOW_SECONDS``,
     default 900 (15 minutes), matching the ``STELE_`` env-var convention
     (``STELE_SECRET_KEY`` et al. — see ``kek.py``)."""
-    return timedelta(seconds=int(os.environ.get("STELE_STEP_UP_WINDOW_SECONDS", "900")))
+    return timedelta(
+        seconds=_parse_step_up_window_seconds(
+            os.environ.get("STELE_STEP_UP_WINDOW_SECONDS", "900")
+        )
+    )
+
+
+# A-4: fail loud at import (i.e. at host boot, since mounting stele.api requires
+# importing it) rather than surfacing a bare ValueError as a 500 on the first
+# step-up-gated request. Hosts that mutate the env after import (e.g. tests using
+# monkeypatch) are still protected — every _step_up_window() call re-validates.
+_parse_step_up_window_seconds(os.environ.get("STELE_STEP_UP_WINDOW_SECONDS", "900"))
 
 
 async def require_fresh_session(
