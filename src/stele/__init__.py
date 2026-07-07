@@ -93,9 +93,12 @@ from stele.person_totp import (
 from stele.webauthn import (
     AddPasskeyBeginResult,
     AuthenticationChallenge,
+    LoginChallengeBeginResult,
+    LoginChallengeNotFound,
     PasskeyEnrollmentError,
     PasskeyEnrollmentNotFound,
     PendingAddPasskeyStore,
+    PendingLoginChallengeStore,
     RegistrationChallenge,
     VerifiedAssertionData,
     VerifiedCredentialData,
@@ -104,6 +107,8 @@ from stele.webauthn import (
     add_passkey_complete,
     begin_authentication,
     begin_registration,
+    login_challenge_begin,
+    login_challenge_complete,
     verify_authentication,
     verify_registration,
 )
@@ -166,6 +171,8 @@ __all__ = [
     "AuthenticationChallenge", "VerifiedCredentialData", "VerifiedAssertionData",
     "add_passkey_begin", "add_passkey_complete", "AddPasskeyBeginResult",
     "PendingAddPasskeyStore", "PasskeyEnrollmentNotFound", "PasskeyEnrollmentError",
+    "login_challenge_begin", "login_challenge_complete", "LoginChallengeBeginResult",
+    "PendingLoginChallengeStore", "LoginChallengeNotFound",
     # kek / crypto
     "EnvKeyEncryptionKeyProvider", "KeyEncryptionKeyProvider",
     "KeyEncryptionKeyUnavailableError", "kek_encrypt", "kek_decrypt",

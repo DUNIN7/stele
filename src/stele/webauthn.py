@@ -372,3 +372,125 @@ async def add_passkey_complete(
     )
     store.discard(add_id)
     return new_credential.id
+
+
+# ===========================================================================
+# Login-challenge ceremony. TS-06: the passkey-assertion (login) flow was the
+# one ceremony Stele defined the pure primitives for (``begin_authentication``,
+# ``verify_authentication``) but shipped no pending-challenge store for — every
+# host had to reinvent one. ``login_challenge_begin`` issues the WebAuthn
+# request options and parks the pending state; ``login_challenge_complete``
+# retrieves it and verifies the assertion. Named ``login_challenge_*`` (not
+# ``login_*``) to avoid colliding with a host's own login route names. Mirrors
+# the add-passkey ceremony's shape exactly, including its pending store lives
+# here too. Unlike ``add_passkey_complete``, this does not perform the
+# credential lookup itself — ``credential_public_key``/``current_sign_count``
+# are supplied by the caller, matching ``verify_authentication``'s existing
+# contract (the assertion can name any enrolled credential; only the caller
+# knows which one it resolved).
+# ===========================================================================
+
+LOGIN_CHALLENGE_PENDING_TTL = timedelta(minutes=5)
+
+
+class LoginChallengeNotFound(Exception):
+    """An unknown or expired login-challenge handle. The mount/host maps this
+    to 404."""
+
+
+@dataclass
+class _PendingLoginChallenge:
+    """In-flight login (authentication) ceremony state."""
+
+    challenge: bytes
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
+class LoginChallengeBeginResult:
+    login_id: str
+    options_json: str
+
+
+class PendingLoginChallengeStore:
+    """In-process pending store for the login-challenge ceremony. A single
+    process holds one; a future multi-process host swaps a database-backed
+    implementation behind the same shape."""
+
+    def __init__(self) -> None:
+        self._records: dict[str, _PendingLoginChallenge] = {}
+
+    def put(self, login_id: str, record: _PendingLoginChallenge) -> None:
+        self._records[login_id] = record
+
+    def get(self, login_id: str, *, now: datetime) -> _PendingLoginChallenge:
+        record = self._records.get(login_id)
+        if record is None:
+            raise LoginChallengeNotFound(f"No pending login challenge {login_id}")
+        if record.expires_at <= now:
+            self._records.pop(login_id, None)
+            raise LoginChallengeNotFound(
+                f"Pending login challenge {login_id} has expired"
+            )
+        return record
+
+    def discard(self, login_id: str) -> None:
+        self._records.pop(login_id, None)
+
+
+# The ceremony's Stele-internal pending store. A host driving the ceremony
+# may pass its own store instance via the ``store`` kwarg instead.
+pending_login_challenge_store = PendingLoginChallengeStore()
+
+
+async def login_challenge_begin(
+    *,
+    config: WebauthnConfig,
+    allow_credentials: list[bytes] | None = None,
+    now: datetime,
+    store: PendingLoginChallengeStore | None = None,
+) -> LoginChallengeBeginResult:
+    """Begin a login (authentication) ceremony. Defaults to the module
+    pending store."""
+    store = store if store is not None else pending_login_challenge_store
+    challenge = begin_authentication(config=config, allow_credentials=allow_credentials)
+    login_id = f"login_{secrets.token_urlsafe(24)}"
+    store.put(
+        login_id,
+        _PendingLoginChallenge(
+            challenge=challenge.challenge,
+            expires_at=now + LOGIN_CHALLENGE_PENDING_TTL,
+        ),
+    )
+    return LoginChallengeBeginResult(login_id=login_id, options_json=challenge.options_json)
+
+
+async def login_challenge_complete(
+    *,
+    login_id: str,
+    credential: dict[str, Any],
+    config: WebauthnConfig,
+    credential_public_key: bytes,
+    current_sign_count: int,
+    now: datetime,
+    store: PendingLoginChallengeStore | None = None,
+) -> VerifiedAssertionData:
+    """Verify the assertion response against the pending login challenge.
+
+    Consumption is success-only: ``discard`` is only reached after
+    ``verify_authentication`` succeeds, so a failed verification (wrong
+    authenticator, dismissed prompt, transient error) leaves the challenge
+    redeemable until it expires — matching ``add_passkey_complete``. Defaults
+    to the module pending store.
+    """
+    store = store if store is not None else pending_login_challenge_store
+    record = store.get(login_id, now=now)
+    verified = verify_authentication(
+        config=config,
+        credential=credential,
+        expected_challenge=record.challenge,
+        credential_public_key=credential_public_key,
+        current_sign_count=current_sign_count,
+    )
+    store.discard(login_id)
+    return verified
