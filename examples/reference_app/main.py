@@ -42,10 +42,12 @@ from stele.kek import EnvKeyEncryptionKeyProvider, kek_decrypt
 from stele.registry import get_principal_by_id, mint_principal
 from stele.session import issue_session, resolve_session
 from stele.webauthn import (
+    LoginChallengeNotFound,
+    PendingLoginChallengeStore,
     WebauthnConfig,
-    begin_authentication,
     begin_registration,
-    verify_authentication,
+    login_challenge_begin,
+    login_challenge_complete,
     verify_registration,
 )
 
@@ -65,21 +67,18 @@ def _now() -> datetime:
 
 
 # ---------------------------------------------------------------------------
-# Tiny in-process pending stores for the two host-composed ceremonies (signup
-# registration, login assertion). A single-process reference app; a real
-# multi-process host would back these with Redis/Postgres.
+# Tiny in-process pending store for the signup-registration ceremony (a
+# host-composed flow — no principal row exists yet to bind the challenge to,
+# so it doesn't fit Stele's own login-challenge primitive). A single-process
+# reference app; a real multi-process host would back this with Redis/Postgres.
+# Login's pending challenge now uses Stele's own core PendingLoginChallengeStore
+# (TS-06) instead of duplicating this shape.
 # ---------------------------------------------------------------------------
 @dataclass
 class _SignupPending:
     challenge: bytes
     display_name: str
     totp_secret: str
-    expires_at: datetime
-
-
-@dataclass
-class _LoginPending:
-    challenge: bytes
     expires_at: datetime
 
 
@@ -110,7 +109,7 @@ def build_app() -> FastAPI:
     )
 
     signup_pending = _PendingStore()
-    login_pending = _PendingStore()
+    login_challenge_store = PendingLoginChallengeStore()
 
     app = FastAPI(title="Stele reference host")
 
@@ -239,13 +238,13 @@ def build_app() -> FastAPI:
     # =====================================================================
     @app.post("/auth/login/begin")
     async def login_begin() -> dict:
-        challenge = begin_authentication(config=webauthn_config, allow_credentials=None)
-        login_id = f"li_{secrets.token_urlsafe(24)}"
-        login_pending.put(
-            login_id,
-            _LoginPending(challenge=challenge.challenge, expires_at=_now() + _PENDING_TTL),
+        result = await login_challenge_begin(
+            config=webauthn_config,
+            allow_credentials=None,
+            now=_now(),
+            store=login_challenge_store,
         )
-        return {"login_id": login_id, "options": json.loads(challenge.options_json)}
+        return {"login_id": result.login_id, "options": json.loads(result.options_json)}
 
     @app.post("/auth/login/passkey")
     async def login_passkey(
@@ -254,7 +253,6 @@ def build_app() -> FastAPI:
         credential: dict = Body(...),
         db: AsyncSession = Depends(db_dep),
     ) -> dict:
-        pending = login_pending.take(login_id, now=_now())
         raw = credential.get("rawId") or credential.get("id")
         if not raw:
             raise HTTPException(status_code=400, detail="Assertion missing credential id.")
@@ -263,13 +261,18 @@ def build_app() -> FastAPI:
         )
         if cred is None:
             raise HTTPException(status_code=401, detail="Unknown credential.")
-        assertion = verify_authentication(
-            config=webauthn_config,
-            credential=credential,
-            expected_challenge=pending.challenge,
-            credential_public_key=cred.public_key,
-            current_sign_count=cred.sign_count,
-        )
+        try:
+            assertion = await login_challenge_complete(
+                login_id=login_id,
+                credential=credential,
+                config=webauthn_config,
+                credential_public_key=cred.public_key,
+                current_sign_count=cred.sign_count,
+                now=_now(),
+                store=login_challenge_store,
+            )
+        except LoginChallengeNotFound as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
         await credentials_registry.update_sign_count(
             credential_id=cred.credential_id, new_sign_count=assertion.new_sign_count, db=db
         )

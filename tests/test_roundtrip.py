@@ -21,6 +21,7 @@ from cryptography.fernet import Fernet
 from httpx import ASGITransport
 from webauthn.helpers import bytes_to_base64url
 
+import stele.webauthn as stele_webauthn
 from stele.webauthn import VerifiedAssertionData, VerifiedCredentialData
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -55,8 +56,12 @@ async def mounted(database_url, _migrated_database, engine, monkeypatch):
             credential_id=cid, public_key=os.urandom(91), sign_count=0, transports=["internal"]
         ),
     )
+    # login_challenge_complete (stele.webauthn) calls verify_authentication as a
+    # bare module-global name, so the patch target is the module that defines
+    # it, not reference_app.main (which no longer imports verify_authentication
+    # directly since TS-06 moved the login ceremony behind login_challenge_complete).
     monkeypatch.setattr(
-        refmain,
+        stele_webauthn,
         "verify_authentication",
         lambda **kw: VerifiedAssertionData(credential_id=cid, new_sign_count=1),
     )
