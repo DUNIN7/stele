@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stele — How It Works & Making It Yours — v0.1</title>
+<style>
+  :root{
+    --ink:#1a1d21; --muted:#5c6470; --accent:#0f4c5c; --accent2:#9a3412;
+    --bg:#fbfaf8; --card:#ffffff; --line:#e5e1da; --pull:#f3efe7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:17px/1.65 Georgia,'Times New Roman',serif}
+  .wrap{max-width:860px;margin:0 auto;padding:48px 28px 80px}
+  header{border-bottom:3px solid var(--accent);padding-bottom:20px;margin-bottom:36px}
+  .kicker{font-family:Verdana,Geneva,sans-serif;font-size:12px;letter-spacing:.14em;
+          text-transform:uppercase;color:var(--accent2);margin:0 0 8px}
+  h1{font-size:32px;line-height:1.2;margin:0 0 10px}
+  .meta{font-family:Verdana,Geneva,sans-serif;font-size:12.5px;color:var(--muted)}
+  h2{font-size:22px;margin:40px 0 12px;color:var(--accent)}
+  h3{font-size:17px;margin:26px 0 8px}
+  p{margin:0 0 14px}
+  .pull{background:var(--pull);border-left:4px solid var(--accent);
+        padding:16px 20px;margin:22px 0;font-size:17px}
+  ul,ol{margin:0 0 16px;padding-left:24px}
+  li{margin-bottom:8px}
+  code{font-family:Menlo,Consolas,monospace;font-size:.85em;background:var(--pull);
+       padding:1px 5px;border-radius:3px}
+  pre{background:var(--pull);border:1px solid var(--line);border-radius:6px;
+      padding:14px 16px;overflow-x:auto;font-family:Menlo,Consolas,monospace;
+      font-size:13px;line-height:1.5}
+  .idlist{font-family:Menlo,Consolas,monospace;font-size:13px;background:var(--pull);
+          border:1px solid var(--line);border-radius:6px;padding:14px 16px;
+          margin:0 0 16px}
+  .diagram{margin:24px 0;text-align:center}
+  .diagram svg{max-width:100%;height:auto}
+  .quote-box{background:var(--card);border:1.5px solid var(--accent);border-radius:8px;
+             padding:16px 20px;margin:20px 0;font-style:italic}
+  footer{margin-top:56px;border-top:1px solid var(--line);padding-top:14px;
+         font-family:Verdana,Geneva,sans-serif;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="kicker">DUNIN7 · Stele</p>
+  <h1>How It Works & Making It Yours</h1>
+  <p class="meta">Version 0.1 · 2026-07-07 · Audience: anyone building an app with Stele</p>
+</header>
+
+<h2>What happens when someone signs up</h2>
+<p>No email, no password, no username. Here's what actually occurs, step by step:</p>
+
+<div class="diagram">
+<svg viewBox="0 0 900 180" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow1" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#5c6470"/>
+    </marker>
+  </defs>
+  <style>
+    .step-box{fill:#ffffff;stroke:#0f4c5c;stroke-width:1.5;rx:8}
+    .step-title{font:700 13px Verdana,sans-serif;fill:#0f4c5c}
+    .step-text{font:11px Verdana,sans-serif;fill:#5c6470}
+    .conn{stroke:#5c6470;stroke-width:1.5;marker-end:url(#arrow1)}
+  </style>
+  <rect x="10" y="40" width="160" height="100" class="step-box"/>
+  <text x="90" y="65" text-anchor="middle" class="step-title">1. Enter name</text>
+  <text x="90" y="90" text-anchor="middle" class="step-text">Just a label —</text>
+  <text x="90" y="105" text-anchor="middle" class="step-text">"Ada," not an ID</text>
+
+  <line x1="170" y1="90" x2="205" y2="90" class="conn"/>
+
+  <rect x="210" y="40" width="160" height="100" class="step-box"/>
+  <text x="290" y="65" text-anchor="middle" class="step-title">2. Passkey created</text>
+  <text x="290" y="90" text-anchor="middle" class="step-text">Unique key, locked</text>
+  <text x="290" y="105" text-anchor="middle" class="step-text">to your site only</text>
+
+  <line x1="370" y1="90" x2="405" y2="90" class="conn"/>
+
+  <rect x="410" y="40" width="160" height="100" class="step-box"/>
+  <text x="490" y="65" text-anchor="middle" class="step-title">3. Scan QR code</text>
+  <text x="490" y="90" text-anchor="middle" class="step-text">Authenticator app</text>
+  <text x="490" y="105" text-anchor="middle" class="step-text">confirms with code</text>
+
+  <line x1="570" y1="90" x2="605" y2="90" class="conn"/>
+
+  <rect x="610" y="40" width="160" height="100" class="step-box"/>
+  <text x="690" y="65" text-anchor="middle" class="step-title">4. Recovery codes</text>
+  <text x="690" y="90" text-anchor="middle" class="step-text">10 one-time backup</text>
+  <text x="690" y="105" text-anchor="middle" class="step-text">codes, saved once</text>
+
+  <line x1="770" y1="90" x2="805" y2="90" class="conn"/>
+
+  <rect x="810" y="55" width="80" height="70" rx="35" fill="#9a3412"/>
+  <text x="850" y="95" text-anchor="middle" font="700 13px Verdana,sans-serif" fill="#fff">Done</text>
+</svg>
+</div>
+
+<p>That's it. No password was ever created, typed, or stored anywhere.</p>
+
+<h2>What happens when someone signs in</h2>
+
+<div class="diagram">
+<svg viewBox="0 0 900 180" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#5c6470"/>
+    </marker>
+  </defs>
+  <style>
+    .step-box2{fill:#ffffff;stroke:#0f4c5c;stroke-width:1.5;rx:8}
+    .step-title2{font:700 13px Verdana,sans-serif;fill:#0f4c5c}
+    .step-text2{font:11px Verdana,sans-serif;fill:#5c6470}
+    .conn2{stroke:#5c6470;stroke-width:1.5;marker-end:url(#arrow2)}
+  </style>
+  <rect x="10" y="40" width="160" height="100" class="step-box2"/>
+  <text x="90" y="65" text-anchor="middle" class="step-title2">1. Click sign in</text>
+  <text x="90" y="90" text-anchor="middle" class="step-text2">Nothing to</text>
+  <text x="90" y="105" text-anchor="middle" class="step-text2">type yet</text>
+
+  <line x1="170" y1="90" x2="205" y2="90" class="conn2"/>
+
+  <rect x="210" y="40" width="160" height="100" class="step-box2"/>
+  <text x="290" y="65" text-anchor="middle" class="step-title2">2. Passkey offered</text>
+  <text x="290" y="90" text-anchor="middle" class="step-text2">Browser shows</text>
+  <text x="290" y="105" text-anchor="middle" class="step-text2">only theirs</text>
+
+  <line x1="370" y1="90" x2="405" y2="90" class="conn2"/>
+
+  <rect x="410" y="40" width="160" height="100" class="step-box2"/>
+  <text x="490" y="65" text-anchor="middle" class="step-title2">3. Approve</text>
+  <text x="490" y="90" text-anchor="middle" class="step-text2">Face ID, Touch ID,</text>
+  <text x="490" y="105" text-anchor="middle" class="step-text2">or fingerprint</text>
+
+  <line x1="570" y1="90" x2="605" y2="90" class="conn2"/>
+
+  <rect x="610" y="40" width="160" height="100" class="step-box2"/>
+  <text x="690" y="65" text-anchor="middle" class="step-title2">4. Enter code</text>
+  <text x="690" y="90" text-anchor="middle" class="step-text2">6-digit or</text>
+  <text x="690" y="105" text-anchor="middle" class="step-text2">recovery code</text>
+
+  <line x1="770" y1="90" x2="805" y2="90" class="conn2"/>
+
+  <rect x="810" y="55" width="80" height="70" rx="35" fill="#9a3412"/>
+  <text x="850" y="95" text-anchor="middle" font="700 13px Verdana,sans-serif" fill="#fff">In</text>
+</svg>
+</div>
+
+<h2>Why this matters for your app</h2>
+<ul>
+  <li><b>No password database to leak</b> — the single most common cause of account breaches doesn't exist in your system.</li>
+  <li><b>No email tied to identity</b> — no email-based account takeover, no "forgot password" flow to secure, because there isn't one.</li>
+  <li><b>Phishing-resistant by construction</b> — a fake copy of your login page can't extract a working credential; the passkey is cryptographically bound to your real site's address.</li>
+  <li><b>The same technology banks and Google use</b> for passwordless sign-in — you get it by mounting one library, not building a security team's worth of infrastructure.</li>
+</ul>
+
+<h2>Making the sign-up and sign-in pages yours</h2>
+<p>The pages you see in the demo (<code>examples/reference_app/</code>) are a <b>starting point</b>, not a fixed design. You're expected to reskin them completely.</p>
+
+<h3>Safe to change — everything visual</h3>
+<p>Open <code>examples/reference_app/static/index.html</code>. Freely change: all the CSS, all the wording, the overall page layout, your logo, your header and footer.</p>
+
+<h3>Must NOT change — a handful of exact names</h3>
+<p><code>app.js</code> finds specific elements by an exact internal name (an <code>id</code> attribute) and wires real functionality to them. Keep these exact names somewhere on the page, restyle everything around them however you like:</p>
+<div class="idlist">signup-name, signup-btn, signup-totp, signup-qr, signup-secret, signup-code, signup-finish-btn, signup-codes, recovery-codes, login-btn, login-2fa, login-code, login-totp-btn, login-recovery, login-recovery-btn, account-section, whoami, list-btn, add-passkey-btn, logout-btn, passkey-list, log</div>
+<p>Also leave alone: the <code>&lt;script&gt;</code> tags for <code>qrcode.js</code> and <code>app.js</code>, and the contents of <code>app.js</code> itself — that file is the actual cryptographic conversation with the browser, and has nothing to do with appearance.</p>
+
+<h3>A concrete example</h3>
+<p><b>Before</b> (the demo's plain version):</p>
+<pre>&lt;button id="signup-btn"&gt;Register a passkey&lt;/button&gt;</pre>
+<p><b>After</b> (rebranded — same button, new look):</p>
+<pre>&lt;button id="signup-btn" class="brand-primary-btn"&gt;
+  Create my account →
+&lt;/button&gt;</pre>
+<p>Same <code>id</code>, so <code>app.js</code> still finds it and still works. Everything about how it looks and reads is now yours.</p>
+
+<h3>If you're working with an AI coding agent</h3>
+<div class="quote-box">
+"Restyle the sign-up and sign-in pages in <code>examples/reference_app/static/index.html</code> to match my brand — [describe your colors, logo, tone]. Keep every element's <code>id</code> attribute exactly as it is, and don't modify <code>app.js</code> or <code>qrcode.js</code> at all."
+</div>
+<p>That instruction gives your agent everything it needs to reskin the pages safely. For deeper integration — mounting Stele into your own application rather than restyling the demo — point your agent at <code>AGENTS.md</code> in the repo root.</p>
+
+<h2>Where to go next</h2>
+<ul>
+  <li><b>Restyling this demo for your brand?</b> You're already reading the right document.</li>
+  <li><b>Mounting Stele into your own application from scratch?</b> Tell your AI agent to read <code>AGENTS.md</code>.</li>
+  <li><b>Want the full technical contract?</b> See <code>docs/stele-mount-contract-v0_1.md</code>.</li>
+</ul>
+
+<footer>
+  DUNIN7 — Done In Seven LLC — Miami, Florida<br>
+  Marvin Percival — <a href="mailto:marvinp@dunin7.com">marvinp@dunin7.com</a><br>
+  Stele — How It Works & Making It Yours — v0.1 — 2026-07-07
+</footer>
+
+</div>
+</body>
+</html>

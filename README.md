@@ -7,6 +7,7 @@ identifies people.
 **New here?**
 - **Building with an AI coding agent?** Tell it to read [`AGENTS.md`](AGENTS.md) — everything it needs to wire Stele in correctly, including what not to do.
 - **Just want to try it, no coding?** Follow [`examples/README.md`](examples/README.md) — about 10 minutes, no experience needed.
+- **Rebranding the sign-up/sign-in pages for your own app?** See [`docs/stele-how-it-works-v0_1.html`](docs/stele-how-it-works-v0_1.html) — what's actually happening during sign-up and sign-in, and exactly what's safe to restyle.
 - **Evaluating Stele as a developer?** Keep reading below.
 
 ---
