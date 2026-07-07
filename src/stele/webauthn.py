@@ -284,6 +284,20 @@ def _extract_transports(credential: dict[str, Any]) -> Optional[list[str]]:
 # here too. No host concepts cross: ``person_id`` is the principal id.
 # ===========================================================================
 
+def _sweep_expired(records: dict[str, Any], *, now: datetime) -> None:
+    """Evict expired entries from an in-process pending store in place.
+
+    A-2: unauthenticated flooding of a ceremony's begin endpoint (signup,
+    login, add-passkey) parks one record per call and nothing previously
+    reclaimed them until their consuming `get`/`take` was hit — never, if the
+    caller abandons the ceremony. Called from every `put`, this bounds the
+    store to (at most) one flooding window's worth of entries instead of
+    growing unboundedly."""
+    expired = [key for key, record in records.items() if record.expires_at <= now]
+    for key in expired:
+        del records[key]
+
+
 ADD_PASSKEY_PENDING_TTL = timedelta(minutes=5)
 
 
@@ -322,7 +336,8 @@ class PendingAddPasskeyStore:
     def __init__(self) -> None:
         self._records: dict[str, _PendingAddPasskey] = {}
 
-    def put(self, add_id: str, record: _PendingAddPasskey) -> None:
+    def put(self, add_id: str, record: _PendingAddPasskey, *, now: datetime) -> None:
+        _sweep_expired(self._records, now=now)
         self._records[add_id] = record
 
     def get(self, add_id: str, *, now: datetime) -> _PendingAddPasskey:
@@ -377,6 +392,7 @@ async def add_passkey_begin(
             options_json=challenge.options_json,
             expires_at=now + ADD_PASSKEY_PENDING_TTL,
         ),
+        now=now,
     )
     return AddPasskeyBeginResult(add_id=add_id, options_json=challenge.options_json)
 
@@ -460,7 +476,8 @@ class PendingLoginChallengeStore:
     def __init__(self) -> None:
         self._records: dict[str, _PendingLoginChallenge] = {}
 
-    def put(self, login_id: str, record: _PendingLoginChallenge) -> None:
+    def put(self, login_id: str, record: _PendingLoginChallenge, *, now: datetime) -> None:
+        _sweep_expired(self._records, now=now)
         self._records[login_id] = record
 
     def get(self, login_id: str, *, now: datetime) -> _PendingLoginChallenge:
@@ -501,6 +518,7 @@ async def login_challenge_begin(
             challenge=challenge.challenge,
             expires_at=now + LOGIN_CHALLENGE_PENDING_TTL,
         ),
+        now=now,
     )
     return LoginChallengeBeginResult(login_id=login_id, options_json=challenge.options_json)
 

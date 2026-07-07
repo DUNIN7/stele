@@ -94,7 +94,13 @@ class _PendingStore:
     def __init__(self) -> None:
         self._records: dict[str, Any] = {}
 
-    def put(self, key: str, value: Any) -> None:
+    def put(self, key: str, value: Any, *, now: datetime) -> None:
+        # A-2: evict expired entries on every put — otherwise unauthenticated
+        # flooding of /auth/signup/begin grows this dict without bound (the
+        # same fix Stele's own pending stores apply — see webauthn._sweep_expired).
+        expired = [k for k, v in self._records.items() if v.expires_at <= now]
+        for k in expired:
+            del self._records[k]
         self._records[key] = value
 
     def take(self, key: str, *, now: datetime) -> Any:
@@ -228,6 +234,7 @@ def build_app() -> FastAPI:
                 totp_secret=totp_secret,
                 expires_at=_now() + _PENDING_TTL,
             ),
+            now=_now(),
         )
         return {
             "signup_id": signup_id,
