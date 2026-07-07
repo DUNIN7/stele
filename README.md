@@ -1,5 +1,16 @@
 # Stele
 
+A sign-in system you can drop into your own app — passkeys and authenticator
+codes instead of passwords, with no email address anywhere in how it
+identifies people.
+
+**New here?**
+- **Building with an AI coding agent?** Tell it to read [`AGENTS.md`](AGENTS.md) — everything it needs to wire Stele in correctly, including what not to do.
+- **Just want to try it, no coding?** Follow [`examples/README.md`](examples/README.md) — about 10 minutes, no experience needed.
+- **Evaluating Stele as a developer?** Keep reading below.
+
+---
+
 A standalone identity & authentication substrate: **principals** (UUID identity),
 **WebAuthn passkeys**, **TOTP**, and **recovery codes**. No host framework
 dependency — Stele is a library of primitives, a mountable router, and its own
@@ -8,8 +19,10 @@ leaves *what they may reach* to you.
 
 > **Status:** Standalone, mountable, and tested. The core primitives, the
 > mountable router + SDK, and the runnable reference host all ship. A real test
-> suite (`tests/`) runs against a throwaway Postgres in CI on every push.
-> Library metadata is `0.1.0`; the first installable tag is `v0.1.0`.
+> suite (`tests/`) runs against a throwaway Postgres in CI on every push. Two
+> internal security review passes have been completed and their findings
+> resolved — see [`CHANGELOG.md`](CHANGELOG.md) for the full history.
+> Library metadata is `0.3.0`; the current tag is `v0.3.0`.
 
 ## What's here
 
@@ -32,6 +45,9 @@ leaves *what they may reach* to you.
   commitment, narrated from the reference host.
 - `tests/` — the suite: primitive units + a mounted reference-host round-trip,
   run in CI against a Postgres service.
+- `AGENTS.md` — integration recipe for coding agents mounting Stele on someone
+  else's behalf: hard constraints, required env vars, the mount pattern, what
+  Stele deliberately doesn't do.
 
 ## Mounting Stele
 
@@ -41,6 +57,7 @@ import stele
 
 app = FastAPI()
 app.include_router(stele.router, prefix="/me/security")
+
 app.dependency_overrides[stele.provide_db_session] = my_db_session      # required
 app.dependency_overrides[stele.provide_webauthn_config] = my_rp_config  # required
 ```
@@ -69,6 +86,10 @@ pip install -e ".[test]"
 export STELE_DATABASE_URL="postgresql+asyncpg://USER@localhost:5432/YOUR_TEST_DB"
 pytest
 ```
+
+## Release history
+
+See [`CHANGELOG.md`](CHANGELOG.md).
 
 ## License
 
