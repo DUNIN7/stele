@@ -77,3 +77,4 @@ Apache-2.0 — see [LICENSE](LICENSE).
 ---
 
 DUNIN7 — Done In Seven LLC — Miami, Florida
+Marvin Percival — marvinp@dunin7.com
