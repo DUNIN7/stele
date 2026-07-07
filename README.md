@@ -18,10 +18,12 @@ leaves *what they may reach* to you.
   KEK-direct crypto floor). No `data_encryption_keys` table — Stele encrypts its
   one secret scope (the TOTP secret) KEK-direct. `import stele` pulls no web
   framework; only touching `stele.router` loads FastAPI.
-- `migrations/` — an Alembic root with a single consolidated baseline that builds
-  the three tables (`principals`, `webauthn_credentials`, `recovery_codes`)
-  against a fresh database. Postgres required (the schema uses `JSONB` and
-  `bytea`); SQLite is not an option.
+- `src/stele/migrations/` — an Alembic root, packaged inside `src/stele` (TS-22)
+  so it ships with the installed wheel. The baseline revision builds the three
+  tables (`principals`, `webauthn_credentials`, `recovery_codes`); later
+  revisions evolve the schema (e.g. `principals.totp_last_step`, TS-11 replay
+  protection) against a fresh database. Postgres required (the schema uses
+  `JSONB` and `bytea`); SQLite is not an option.
 - `examples/` — a runnable reference host: the whole mount in one readable module
   (`reference_app/main.py`), the browser WebAuthn ceremony, a config generator,
   a throwaway-Postgres compose file, and a walkthrough README.
