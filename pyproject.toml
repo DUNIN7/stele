@@ -19,6 +19,7 @@ dependencies = [
     "asyncpg==0.31.0",              # async PostgreSQL driver (the migration + runtime target)
     "alembic==1.18.4",              # the independently-runnable migration set
     "fastapi==0.135.3",             # the mountable primitive router (stele.api)
+    "starlette>=0.46.0",            # floor-pin: currently transitive-only via fastapi
 ]
 
 [project.optional-dependencies]
