@@ -6,6 +6,13 @@ against the test Postgres. The app shares the suite's engine (the conftest ``eng
 fixture is injected into the app via ``make_engine``, so app and suite hit one DB),
 and the two WebAuthn library verifies are stubbed in ``reference_app.main`` — the
 module that binds them — since no authenticator exists in CI.
+
+TS-16 gates the app's 7 state-changing routes behind a double-submit CSRF cookie,
+so every call to one of those routes below goes through ``_csrf_post``, which reads
+the cookie httpx's jar already picked up from a prior response and echoes it as the
+``X-CSRF-Token`` header — exactly what the reference host's own ``app.js`` does.
+``/me/security/*`` (stele.router's own mounted routes) are unaffected — CSRF is this
+CR's scope, not stele.router's — so calls to those stay plain ``client.post``.
 """
 from __future__ import annotations
 
@@ -29,6 +36,18 @@ sys.path.insert(0, str(_REPO_ROOT / "examples"))
 
 _RP_ORIGIN = "http://localhost:8000"
 _APP_SECRET_KEY = Fernet.generate_key().decode()
+_CSRF_COOKIE = "stele_ref_csrf"
+_CSRF_HEADER = "X-CSRF-Token"
+
+
+async def _csrf_post(client: httpx.AsyncClient, url: str, **kwargs):
+    """POST through one of the reference app's 7 CSRF-gated routes, echoing the
+    double-submit cookie httpx's jar already holds — the same thing app.js does."""
+    headers = kwargs.pop("headers", None) or {}
+    token = client.cookies.get(_CSRF_COOKIE)
+    if token:
+        headers[_CSRF_HEADER] = token
+    return await client.post(url, headers=headers, **kwargs)
 
 
 @pytest_asyncio.fixture
@@ -90,8 +109,12 @@ async def test_full_round_trip(db, mounted, monkeypatch):
 
     transport = ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url=_RP_ORIGIN) as client:
+        # 0. GET / mints the double-submit CSRF cookie (TS-16) — the same
+        # bootstrap a real browser gets on first page load.
+        await client.get("/")
+
         # 1. signup begin -> registration challenge
-        r = await client.post("/auth/signup/begin", json={"display_name": "Round Trip"})
+        r = await _csrf_post(client, "/auth/signup/begin", json={"display_name": "Round Trip"})
         assert r.status_code == 200, r.text
         begin = r.json()
         assert "challenge" in begin["options"]
@@ -99,7 +122,8 @@ async def test_full_round_trip(db, mounted, monkeypatch):
         totp_secret = begin["totp_secret"]
 
         # 2. signup complete (canned attestation) -> full session + recovery codes
-        r = await client.post(
+        r = await _csrf_post(
+            client,
             "/auth/signup/complete",
             json={
                 "signup_id": signup_id,
@@ -115,14 +139,15 @@ async def test_full_round_trip(db, mounted, monkeypatch):
         assert who["authenticated"] is True and who["totp_verified"] is True
 
         # 3. login begin -> discoverable (no allowCredentials in the options)
-        r = await client.post("/auth/login/begin")
+        r = await _csrf_post(client, "/auth/login/begin")
         assert r.status_code == 200, r.text
         login = r.json()
         assert not login["options"].get("allowCredentials")
         login_id = login["login_id"]
 
         # 4. login passkey -> partial session; a partial session cannot reach enrollment
-        r = await client.post(
+        r = await _csrf_post(
+            client,
             "/auth/login/passkey",
             json={"login_id": login_id, "credential": _credential(cid)},
         )
@@ -136,7 +161,7 @@ async def test_full_round_trip(db, mounted, monkeypatch):
         # interval rather than left to real-clock timing.
         later = now + timedelta(seconds=31)
         monkeypatch.setattr(refmain, "_now", lambda: later)
-        r = await client.post("/auth/login/totp", json={"code": pyotp.TOTP(totp_secret).at(later)})
+        r = await _csrf_post(client, "/auth/login/totp", json={"code": pyotp.TOTP(totp_secret).at(later)})
         assert r.status_code == 200, r.text
 
         # 6. mounted enrollment route through stele.router with the full session
@@ -146,18 +171,19 @@ async def test_full_round_trip(db, mounted, monkeypatch):
         assert len(passkeys) == 1
 
         # 7. recovery factor: a fresh login consuming a recovery code -> full session
-        login_id_2 = (await client.post("/auth/login/begin")).json()["login_id"]
-        await client.post(
+        login_id_2 = (await _csrf_post(client, "/auth/login/begin")).json()["login_id"]
+        await _csrf_post(
+            client,
             "/auth/login/passkey",
             json={"login_id": login_id_2, "credential": _credential(cid)},
         )
-        r = await client.post("/auth/login/recovery", json={"code": recovery_code})
+        r = await _csrf_post(client, "/auth/login/recovery", json={"code": recovery_code})
         assert r.status_code == 200, r.text
         who = (await client.get("/auth/whoami")).json()
         assert who["authenticated"] is True and who["totp_verified"] is True
 
         # 8. logout -> the session no longer resolves
-        await client.post("/auth/logout")
+        await _csrf_post(client, "/auth/logout")
         who = (await client.get("/auth/whoami")).json()
         assert who["authenticated"] is False
 
@@ -177,14 +203,16 @@ async def test_totp_signup_code_rejected_as_replay_at_login(db, mounted, monkeyp
 
     transport = ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url=_RP_ORIGIN) as client:
+        await client.get("/")  # mints the CSRF cookie
         begin = (
-            await client.post("/auth/signup/begin", json={"display_name": "Replay Test"})
+            await _csrf_post(client, "/auth/signup/begin", json={"display_name": "Replay Test"})
         ).json()
         signup_id = begin["signup_id"]
         totp_secret = begin["totp_secret"]
         code = pyotp.TOTP(totp_secret).at(frozen)
 
-        r = await client.post(
+        r = await _csrf_post(
+            client,
             "/auth/signup/complete",
             json={
                 "signup_id": signup_id,
@@ -194,8 +222,9 @@ async def test_totp_signup_code_rejected_as_replay_at_login(db, mounted, monkeyp
         )
         assert r.status_code == 200, r.text
 
-        login = (await client.post("/auth/login/begin")).json()
-        r = await client.post(
+        login = (await _csrf_post(client, "/auth/login/begin")).json()
+        r = await _csrf_post(
+            client,
             "/auth/login/passkey",
             json={"login_id": login["login_id"], "credential": _credential(cid)},
         )
@@ -203,21 +232,26 @@ async def test_totp_signup_code_rejected_as_replay_at_login(db, mounted, monkeyp
 
         # Same code, same frozen instant -> the same step already accepted at
         # signup. Must be rejected as a replay, not re-accepted.
-        r = await client.post("/auth/login/totp", json={"code": code})
+        r = await _csrf_post(client, "/auth/login/totp", json={"code": code})
         assert r.status_code == 400, r.text
 
 
 async def test_mounted_totp_rotate_issuer_is_rp_name(db, mounted):
     """The mounted /totp/rotate/begin route carries the host's WebauthnConfig.rp_name
     as the authenticator issuer — the seam end-to-end through the mount (not 'Stele',
-    not a hardcoded brand)."""
+    not a hardcoded brand). Not a CSRF-gated route (stele.router's own, out of this
+    CR's scope), so it stays a plain client.post."""
     from urllib.parse import parse_qs, urlparse
 
     app, cid = mounted
     transport = ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url=_RP_ORIGIN) as client:
-        begin = (await client.post("/auth/signup/begin", json={"display_name": "Rotate RP"})).json()
-        await client.post(
+        await client.get("/")  # mints the CSRF cookie
+        begin = (
+            await _csrf_post(client, "/auth/signup/begin", json={"display_name": "Rotate RP"})
+        ).json()
+        await _csrf_post(
+            client,
             "/auth/signup/complete",
             json={
                 "signup_id": begin["signup_id"],

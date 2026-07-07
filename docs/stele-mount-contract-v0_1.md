@@ -88,6 +88,30 @@ async def extract_token(request):
 
 The **cookie name is yours.** Stele exports none for you to inherit — you name your own, set it from the token Stele mints, and read it back in `extract_token`. The reference host names its cookie `stele_ref_session`.
 
+## CSRF: a host responsibility under cookie-mode delivery
+
+Cookie delivery buys the browser convenience of §"Delivery: cookie or bearer" above, but it inherits that shape's classic weakness: a browser attaches cookies to a request regardless of which site asked for it. Bearer delivery doesn't have this problem — a cross-site page cannot make the browser attach an `Authorization` header it never set — so CSRF only matters for the cookie half of a dual-shape mount. Stele mints no CSRF token of its own, for the same reason it sets no cookie of its own (§ above): it does not know, at mint time, which delivery shape you'll choose.
+
+The reference host closes this gap with a **double-submit cookie**: a second, non-`HttpOnly` cookie holding a random token, which the page's own JavaScript reads and echoes back as a header on every mutating request. A cross-site attacker's page can still make the browser *send* that cookie, but same-origin policy stops it from *reading* the cookie's value to forge the matching header — so the two must originate from the same page.
+
+```python
+def _issue_csrf_cookie(response: Response) -> None:
+    response.set_cookie(
+        key="stele_ref_csrf", value=secrets.token_urlsafe(32),
+        httponly=False, samesite="lax",
+        secure=rp_origin.startswith("https"), path="/",
+    )
+
+def _require_csrf(request: Request) -> None:
+    if request.headers.get("Authorization", "").lower().startswith("bearer"):
+        return  # bearer delivery is immune to CSRF by construction
+    cookie, header = request.cookies.get("stele_ref_csrf"), request.headers.get("X-CSRF-Token")
+    if not cookie or not header or not secrets.compare_digest(cookie, header):
+        raise HTTPException(status_code=403, detail="Missing or invalid CSRF token.")
+```
+
+The reference host mints the token on `GET /` (so it exists before the page's first mutating call), rotates it at every anonymous→authenticated or partial→full session boundary (signup, each login step), gates all seven of its own state-changing routes with `_require_csrf`, and clears it on logout. None of this lives in `stele.router` — it is entirely host code, the worked example for an adopter who chooses cookie delivery. An adopter using bearer-only delivery needs none of it.
+
 ## The minimal mount, walked
 
 This is the reference host at `stele/examples/`, narrated. It is copy-runnable.

@@ -13,6 +13,9 @@ What it demonstrates:
     (kek_decrypt the secret, then pyotp verify) — Stele's surface does not grow.
   - Seed alignment: NO email as identity. Sign-in keys on credentials only; the app
     collects a display name, never an email, and never looks anyone up by email.
+  - CSRF as a host responsibility (TS-16): a double-submit-cookie token gates every
+    state-changing route reachable by cookie delivery. Stele mints no CSRF token of
+    its own — same boundary as the session cookie itself (§ delivery, above).
 
 This file is deliberately one module: a stranger reads it top to bottom and sees
 exactly what a real mount takes.
@@ -20,6 +23,7 @@ exactly what a real mount takes.
 from __future__ import annotations
 
 import json
+import logging
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -60,6 +64,9 @@ from reference_app.db import (
 
 _PENDING_TTL = timedelta(minutes=5)
 _STATIC_DIR = Path(__file__).parent / "static"
+_CSRF_HEADER = "X-CSRF-Token"
+
+logger = logging.getLogger("reference_app")
 
 
 def _now() -> datetime:
@@ -101,6 +108,13 @@ class _PendingStore:
 
 def build_app() -> FastAPI:
     settings = load_settings()
+    if not settings.rp_origin.startswith("https"):
+        logger.warning(
+            "STELE_RP_ORIGIN=%r is not https — the session and CSRF cookies will "
+            "be set without the Secure flag. Fine for local development, never "
+            "for a deployed host.",
+            settings.rp_origin,
+        )
     engine = make_engine(settings.database_url)
     session_factory = make_session_factory(engine)
     provide_db_session = make_provide_db_session(session_factory)
@@ -152,13 +166,45 @@ def build_app() -> FastAPI:
             path="/",
         )
 
+    # --- CSRF (TS-16): double-submit cookie ---------------------------------
+    # Stele mints no CSRF token — the same boundary as the session cookie itself
+    # (docs § "Delivery: cookie or bearer, your choice"). Defense is the host's:
+    # a non-HttpOnly cookie the page's own JS can read, echoed back as a header a
+    # cross-site page cannot forge (same-origin policy blocks reading the cookie).
+    def _issue_csrf_cookie(response: Response) -> None:
+        response.set_cookie(
+            key=settings.csrf_cookie_name,
+            value=secrets.token_urlsafe(32),
+            httponly=False,
+            samesite="lax",
+            secure=settings.rp_origin.startswith("https"),
+            max_age=24 * 3600,
+            path="/",
+        )
+
+    def _require_csrf(request: Request) -> None:
+        """Gate for the 7 state-changing routes below. Only enforced for
+        cookie-delivered calls — a caller presenting its own Authorization:
+        Bearer header cannot be forged into doing so by a cross-site page, so
+        bearer delivery is immune to CSRF by construction and is exempt."""
+        header = request.headers.get("Authorization", "")
+        scheme, _, _ = header.partition(" ")
+        if scheme.lower() == "bearer":
+            return
+        cookie_token = request.cookies.get(settings.csrf_cookie_name)
+        header_token = request.headers.get(_CSRF_HEADER)
+        if not cookie_token or not header_token or not secrets.compare_digest(
+            cookie_token, header_token
+        ):
+            raise HTTPException(status_code=403, detail="Missing or invalid CSRF token.")
+
     # =====================================================================
     # Signup — host composition over Stele primitives (create principal +
     # first passkey + TOTP + recovery codes). Two steps: begin issues the
     # WebAuthn challenge and a fresh TOTP secret; complete verifies both and
     # mints the account.
     # =====================================================================
-    @app.post("/auth/signup/begin")
+    @app.post("/auth/signup/begin", dependencies=[Depends(_require_csrf)])
     async def signup_begin(display_name: str = Body(..., embed=True)) -> dict:
         if not display_name or not display_name.strip():
             raise HTTPException(status_code=400, detail="display_name is required.")
@@ -189,7 +235,7 @@ def build_app() -> FastAPI:
             "totp_provisioning_uri": provisioning_uri,
         }
 
-    @app.post("/auth/signup/complete")
+    @app.post("/auth/signup/complete", dependencies=[Depends(_require_csrf)])
     async def signup_complete(
         response: Response,
         signup_id: str = Body(...),
@@ -228,6 +274,7 @@ def build_app() -> FastAPI:
             secret_key=settings.secret_key, now=_now(),
         )
         _set_session_cookie(response, token)
+        _issue_csrf_cookie(response)  # rotate at the anonymous→authenticated boundary
         # recovery_codes shown exactly once; token returned so an agent caller can
         # use the bearer shape too.
         return {"person_id": str(person.id), "recovery_codes": codes, "session_token": token}
@@ -236,7 +283,7 @@ def build_app() -> FastAPI:
     # Login — host composition. Passkey assertion (factor 1) → partial session;
     # then TOTP or a recovery code (factor 2) → full session.
     # =====================================================================
-    @app.post("/auth/login/begin")
+    @app.post("/auth/login/begin", dependencies=[Depends(_require_csrf)])
     async def login_begin() -> dict:
         result = await login_challenge_begin(
             config=webauthn_config,
@@ -246,7 +293,7 @@ def build_app() -> FastAPI:
         )
         return {"login_id": result.login_id, "options": json.loads(result.options_json)}
 
-    @app.post("/auth/login/passkey")
+    @app.post("/auth/login/passkey", dependencies=[Depends(_require_csrf)])
     async def login_passkey(
         response: Response,
         login_id: str = Body(...),
@@ -284,6 +331,7 @@ def build_app() -> FastAPI:
             secret_key=settings.secret_key, now=_now(),
         )
         _set_session_cookie(response, partial)
+        _issue_csrf_cookie(response)  # rotate at the anonymous→partial-session boundary
         return {"next": "second-factor", "session_token": partial}
 
     async def _principal_id_from_partial(request: Request, db: AsyncSession) -> UUID:
@@ -297,7 +345,7 @@ def build_app() -> FastAPI:
             raise HTTPException(status_code=401, detail="No partial session — begin login first.")
         return resolved.principal.id
 
-    @app.post("/auth/login/totp")
+    @app.post("/auth/login/totp", dependencies=[Depends(_require_csrf)])
     async def login_totp(
         request: Request,
         response: Response,
@@ -330,9 +378,10 @@ def build_app() -> FastAPI:
             secret_key=settings.secret_key, now=_now(),
         )
         _set_session_cookie(response, token)
+        _issue_csrf_cookie(response)  # rotate at the partial→full-session boundary
         return {"ok": True, "session_token": token}
 
-    @app.post("/auth/login/recovery")
+    @app.post("/auth/login/recovery", dependencies=[Depends(_require_csrf)])
     async def login_recovery(
         request: Request,
         response: Response,
@@ -351,11 +400,13 @@ def build_app() -> FastAPI:
             secret_key=settings.secret_key, now=_now(),
         )
         _set_session_cookie(response, token)
+        _issue_csrf_cookie(response)  # rotate at the partial→full-session boundary
         return {"ok": True, "session_token": token}
 
-    @app.post("/auth/logout")
+    @app.post("/auth/logout", dependencies=[Depends(_require_csrf)])
     async def logout(response: Response) -> dict:
         response.delete_cookie(key=settings.cookie_name, path="/")
+        response.delete_cookie(key=settings.csrf_cookie_name, path="/")
         return {"ok": True}
 
     @app.get("/auth/whoami")
@@ -376,7 +427,11 @@ def build_app() -> FastAPI:
 
     @app.get("/")
     async def index() -> FileResponse:
-        return FileResponse(str(_STATIC_DIR / "index.html"))
+        response = FileResponse(str(_STATIC_DIR / "index.html"))
+        # Bootstraps the double-submit cookie before any mutating call: by the
+        # time app.js fires its first POST, the CSRF cookie already exists to echo.
+        _issue_csrf_cookie(response)
+        return response
 
     return app
 

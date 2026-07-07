@@ -73,10 +73,20 @@ function serializeAssertion(cred) {
   };
 }
 
+// TS-16: the double-submit CSRF cookie is minted on page load (GET /, non-HttpOnly
+// on purpose) — read it back here and echo it as a header on every mutating call.
+function csrfToken() {
+  const match = document.cookie.match(/(?:^|; )stele_ref_csrf=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 async function postJSON(url, body) {
+  const headers = { "Content-Type": "application/json" };
+  const token = csrfToken();
+  if (token) headers["X-CSRF-Token"] = token;
   const r = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     credentials: "same-origin", // carry the session cookie
     body: body === undefined ? undefined : JSON.stringify(body),
   });

@@ -37,6 +37,10 @@ class Settings:
     # The reference app names its own session cookie. This is the §1.6 point made
     # concrete: the host owns delivery, so the host owns the cookie name.
     cookie_name: str = "stele_ref_session"
+    # TS-16: the double-submit CSRF token cookie — also the host's own choice,
+    # same boundary as cookie_name above. Non-HttpOnly by design (the page's own
+    # JS must be able to read it back into a header).
+    csrf_cookie_name: str = "stele_ref_csrf"
 
 
 def _require(name: str) -> str:
