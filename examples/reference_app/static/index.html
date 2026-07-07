@@ -25,8 +25,9 @@
       <label>Display name <input id="signup-name" placeholder="Ada Lovelace" /></label>
       <button id="signup-btn">Register a passkey</button>
       <div id="signup-totp" class="hidden">
-        <p>Add this secret to your authenticator app, then enter a code:</p>
-        <p><code id="signup-secret"></code></p>
+        <p>Scan this with your authenticator app (Google Authenticator, Authy, or 1Password), then enter the 6-digit code it shows:</p>
+        <div id="signup-qr"></div>
+        <p>Can't scan? Enter this secret manually instead: <code id="signup-secret"></code></p>
         <label>Authenticator code <input id="signup-code" inputmode="numeric" placeholder="123456" /></label>
         <button id="signup-finish-btn">Finish sign up</button>
       </div>
@@ -60,6 +61,7 @@
     <h2>Log</h2>
     <div id="log"></div>
 
+    <script src="/static/qrcode.js"></script>
     <script src="/static/app.js"></script>
   </body>
 </html>

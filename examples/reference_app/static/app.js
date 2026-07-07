@@ -106,8 +106,11 @@ document.getElementById("signup-btn").onclick = async () => {
     const cred = await navigator.credentials.create({ publicKey: coerceCreateOptions(begin.options) });
     window._pendingRegistration = serializeRegistration(cred);
     document.getElementById("signup-secret").textContent = begin.totp_secret;
+    const qrEl = document.getElementById("signup-qr");
+    qrEl.innerHTML = "";
+    new QRCode(qrEl, { text: begin.totp_provisioning_uri, width: 200, height: 200 });
     document.getElementById("signup-totp").classList.remove("hidden");
-    log("Passkey created. Add the TOTP secret to your authenticator, then finish.");
+    log("Passkey created. Scan the QR code with your authenticator app, then finish.");
   } catch (e) { log("signup begin failed: " + e.message); }
 };
 document.getElementById("signup-finish-btn").onclick = async () => {

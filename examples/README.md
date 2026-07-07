@@ -110,7 +110,11 @@ Open your web browser and go to:
 http://localhost:8000
 ```
 
-You'll see a simple sign-up page. Click sign up, give yourself a name, and follow your Mac's prompt to use Touch ID (or your phone, if given the option) instead of a password. You'll then see a screen with 10 recovery codes — these are your backup if you ever lose access to Touch ID. Take a screenshot or write them down.
+You'll see a simple sign-up page. Click sign up, give yourself a name, and follow your Mac's prompt to use Touch ID (or your phone, if given the option) instead of a password.
+
+Next, you'll see a QR code and a box asking for a 6-digit code. This is a second layer of security — an authenticator app on your phone (Google Authenticator, Authy, or 1Password all work) that generates a fresh code every 30 seconds. Open that app, scan the QR code with it, then type the 6-digit code it shows into the box and click "Finish sign up." If you don't have one of these apps yet, any of the three above is free — search your phone's app store for the name.
+
+You'll then see a screen with 10 recovery codes — these are your backup if you ever lose access to Touch ID or your authenticator app. Take a screenshot or write them down.
 
 Sign out, then sign back in. Notice there's no email address or username to type anywhere — your Mac just offers your passkey, you approve it, and you're in. That's the whole point of Stele.
 
