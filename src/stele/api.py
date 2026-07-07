@@ -250,7 +250,7 @@ router = APIRouter(tags=["stele-security"])
 
 @router.post("/passkeys/begin", response_model=PasskeyBeginResponse, summary="Begin registering an additional passkey")
 async def passkey_begin(
-    principal: Principal = Depends(resolve_current_principal),
+    principal: Principal = Depends(require_fresh_session),
     person_email: Optional[str] = Depends(provide_person_email),
     db: AsyncSession = Depends(provide_db_session),
     config: WebauthnConfig = Depends(provide_webauthn_config),
@@ -272,7 +272,7 @@ async def passkey_begin(
 @router.post("/passkeys/complete", response_model=PasskeyCompleteResponse, summary="Finish registering an additional passkey")
 async def passkey_complete(
     body: PasskeyCompleteRequest,
-    principal: Principal = Depends(resolve_current_principal),
+    principal: Principal = Depends(require_fresh_session),
     db: AsyncSession = Depends(provide_db_session),
     config: WebauthnConfig = Depends(provide_webauthn_config),
 ) -> PasskeyCompleteResponse:
@@ -322,7 +322,7 @@ async def passkey_list(
 @router.delete("/passkeys/{passkey_id}", response_model=PasskeyRevokeResponse, summary="Remove one of my passkeys")
 async def passkey_revoke(
     passkey_id: UUID,
-    principal: Principal = Depends(resolve_current_principal),
+    principal: Principal = Depends(require_fresh_session),
     db: AsyncSession = Depends(provide_db_session),
 ) -> PasskeyRevokeResponse:
     creds = await credentials_registry.list_credentials_for_person(person_id=principal.id, db=db)
@@ -341,7 +341,7 @@ async def passkey_revoke(
 
 @router.post("/recovery-codes/regenerate", response_model=RecoveryCodesRegenerateResponse, summary="Regenerate my recovery codes")
 async def recovery_codes_regenerate(
-    principal: Principal = Depends(resolve_current_principal),
+    principal: Principal = Depends(require_fresh_session),
     db: AsyncSession = Depends(provide_db_session),
 ) -> RecoveryCodesRegenerateResponse:
     fresh = await recovery_codes.regenerate_recovery_codes(person_id=principal.id, db=db)
@@ -361,7 +361,7 @@ async def recovery_codes_status(
 
 @router.post("/totp/rotate/begin", response_model=TotpRotateBeginResponse, summary="Begin rotating my authenticator")
 async def totp_rotate_begin(
-    principal: Principal = Depends(resolve_current_principal),
+    principal: Principal = Depends(require_fresh_session),
     db: AsyncSession = Depends(provide_db_session),
     config: WebauthnConfig = Depends(provide_webauthn_config),
 ) -> TotpRotateBeginResponse:
@@ -374,7 +374,7 @@ async def totp_rotate_begin(
 @router.post("/totp/rotate/confirm", response_model=TotpRotateConfirmResponse, summary="Confirm my new authenticator")
 async def totp_rotate_confirm(
     body: TotpRotateConfirmRequest,
-    principal: Principal = Depends(resolve_current_principal),
+    principal: Principal = Depends(require_fresh_session),
     db: AsyncSession = Depends(provide_db_session),
     secret_key: str = Depends(provide_secret_key),
 ) -> TotpRotateConfirmResponse:
