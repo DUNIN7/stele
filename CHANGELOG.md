@@ -1,3 +1,29 @@
+## v0.3.0 — 2026-07-07
+
+### Added
+- Fail-loud validation of rp_id/rp_origin at WebAuthnConfig construction
+  (rejects a misconfigured relying-party setup instead of accepting it
+  silently)
+- Sweep of expired entries from in-process pending-challenge stores
+  (closes an unauthenticated memory-exhaustion path)
+- Atomic update for TOTP replay-guard state (closes a narrow
+  concurrent-submission race on a still-live code)
+- Startup-time validation of the step-up freshness window configuration
+  (fails at boot with a clear error, not per-request)
+
+### Fixed
+- generate_env.py now quotes all generated .env values (a value
+  containing a space previously failed to load silently)
+- Stale migrations-layout description in README corrected
+- Explicit starlette version floor pinned (previously transitive-only)
+
+### Security
+This release is the second internal security review pass — an
+adversarial review of the fixes shipped in v0.2.0, rather than new
+ground. It found and closed four real gaps in that prior work, including
+one (the WebAuthn relying-party validation) that had never been checked
+by either review pass before this one.
+
 ## v0.2.0 — 2026-07-06
 
 ### Added
