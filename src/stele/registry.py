@@ -86,6 +86,7 @@ async def mint_principal(
     recovery_codes_count: int = recovery_codes.DEFAULT_CODE_COUNT,
     secret_key: str,
     now: datetime,
+    totp_last_step: Optional[int] = None,
     db: AsyncSession,
 ) -> tuple[PrincipalRow, list[str]]:
     """Mint a full principal — the production sign-up primitive.
@@ -94,6 +95,12 @@ async def mint_principal(
     host columns like onboarded-state/email/mobile are set host-side by the
     caller), add the WebAuthn passkey, and generate + store the recovery codes.
     Returns the row and the plaintext recovery codes (shown once).
+
+    ``totp_last_step`` seeds the replay-guard column from the step the caller
+    already verified the signup TOTP code against (TS-11) — the signup verify
+    happens before this row exists, so there is nowhere else to persist it.
+    Without this, the signup-time code would remain replayable at the very
+    next login.
 
     It does NOT seed saved filters, create any membership/org/personal
     engagement or credit, or issue a session — those are host concerns. It
@@ -107,6 +114,7 @@ async def mint_principal(
     person = PrincipalRow(
         display_name=display_name,
         totp_secret=totp_secret_enc,
+        totp_last_step=totp_last_step,
         first_login_at=now,  # signup is the first login
     )
     db.add(person)

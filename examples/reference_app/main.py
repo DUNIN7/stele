@@ -36,6 +36,7 @@ from webauthn.helpers import base64url_to_bytes
 
 import stele
 from stele import credentials as credentials_registry
+from stele import person_totp
 from stele import recovery as recovery_codes
 from stele.kek import EnvKeyEncryptionKeyProvider, kek_decrypt
 from stele.registry import get_principal_by_id, mint_principal
@@ -198,7 +199,15 @@ def build_app() -> FastAPI:
         db: AsyncSession = Depends(db_dep),
     ) -> dict:
         pending = signup_pending.take(signup_id, now=_now())
-        if not pyotp.TOTP(pending.totp_secret).verify(totp_code, valid_window=1):
+        # TS-11: no PrincipalRow exists yet at this point, so there is no
+        # last-accepted step to check against here — the step this verify
+        # accepts is threaded into mint_principal below, which seeds it, so
+        # this same code can't be replayed at the first login afterward.
+        try:
+            totp_step = person_totp.verify_totp_step(
+                secret=pending.totp_secret, code=totp_code, last_step=None, now=_now(),
+            )
+        except person_totp.PersonTotpCodeInvalid:
             raise HTTPException(status_code=400, detail="Authenticator code did not verify.")
         verified = verify_registration(
             config=webauthn_config,
@@ -208,6 +217,7 @@ def build_app() -> FastAPI:
         person, codes = await mint_principal(
             display_name=pending.display_name,
             totp_secret_plaintext=pending.totp_secret,
+            totp_last_step=totp_step,
             passkey_credential=verified,
             secret_key=settings.secret_key,
             now=_now(),
@@ -296,15 +306,22 @@ def build_app() -> FastAPI:
         if principal_row is None:
             raise HTTPException(status_code=401, detail="Unknown principal.")
         # Login-TOTP is composed host-side (CR §0.5): decrypt the stored secret,
-        # then verify the code. Stele has no standalone TOTP-verify primitive.
+        # then verify the code via the shared person_totp.verify_totp_step
+        # primitive (TS-11) — Stele owns no login route of its own.
         from stele.models import PrincipalRow
         from sqlalchemy import select
         row = (await db.execute(select(PrincipalRow).where(PrincipalRow.id == person_id))).scalar_one()
         if not row.totp_secret:
             raise HTTPException(status_code=400, detail="No authenticator enrolled.")
         secret = kek_decrypt(row.totp_secret, EnvKeyEncryptionKeyProvider(secret_key=settings.secret_key))
-        if not pyotp.TOTP(secret).verify(code, valid_window=1):
+        try:
+            step = person_totp.verify_totp_step(
+                secret=secret, code=code, last_step=row.totp_last_step, now=_now(),
+            )
+        except person_totp.PersonTotpCodeInvalid:
             raise HTTPException(status_code=400, detail="Authenticator code did not verify.")
+        row.totp_last_step = step
+        await db.commit()
         _, token = issue_session(
             person_id=person_id, totp_verified=True,
             secret_key=settings.secret_key, now=_now(),
