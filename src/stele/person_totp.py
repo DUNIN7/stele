@@ -21,7 +21,7 @@ from uuid import UUID
 
 import pyotp
 from pyotp.utils import strings_equal
-from sqlalchemy import select
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from stele.kek import EnvKeyEncryptionKeyProvider, kek_encrypt
@@ -126,10 +126,22 @@ async def confirm_totp_rotation(
     code — or a code replaying an already-accepted step — nothing is written
     and the person's existing secret stays intact.
 
+    A-1: the ``row.totp_last_step`` read below only informs which step this
+    call believes it should accept — on its own it does not lock out a
+    concurrent confirm of the same still-live code (two callers could both
+    read the pre-write ``last_step`` and both pass ``verify_totp_step``).
+    Mirroring TS-13's recovery-code fix, the write is a single conditional
+    ``UPDATE ... WHERE totp_last_step IS NULL OR totp_last_step < :step
+    RETURNING id`` against the person row: if a concurrent confirm already
+    advanced ``totp_last_step`` to this step (or past it) first, the UPDATE
+    matches no row and this call is rejected as a replay — same outcome as
+    a code that never verified.
+
     Raises:
         ValueError: the secret is not base32, or the person row is missing.
-        PersonTotpCodeInvalid: the code did not verify, or replayed a step
-            already accepted (no write either way).
+        PersonTotpCodeInvalid: the code did not verify, replayed a step
+            already accepted, or lost the race to a concurrent confirm
+            (no write in any case).
     """
     if not secret or not isinstance(secret, str):
         raise ValueError("secret must be a non-empty base32 string")
@@ -147,9 +159,20 @@ async def confirm_totp_rotation(
         secret=secret, code=code, last_step=row.totp_last_step, now=now
     )
 
-    row.totp_secret = kek_encrypt(
+    encrypted_secret = kek_encrypt(
         secret, EnvKeyEncryptionKeyProvider(secret_key=secret_key)
     )
-    row.totp_last_step = step
-    row.updated_at = now
-    await db.flush()
+    won_race = await db.execute(
+        update(PrincipalRow)
+        .where(
+            PrincipalRow.id == person_id,
+            or_(
+                PrincipalRow.totp_last_step.is_(None),
+                PrincipalRow.totp_last_step < step,
+            ),
+        )
+        .values(totp_secret=encrypted_secret, totp_last_step=step, updated_at=now)
+        .returning(PrincipalRow.id)
+    )
+    if won_race.first() is None:
+        raise PersonTotpCodeInvalid("Invalid code. Try again.")
