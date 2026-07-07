@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Stele — a standalone identity & authentication substrate: principals (UUID identity), WebAuthn passkeys, TOTP, and recovery codes."
 readme = "README.md"
 requires-python = ">=3.12"
-license = { text = "Proprietary" }
+license = "Apache-2.0"
 authors = [{ name = "DUNIN7 — Done In Seven LLC" }]
 
 # Pinned (==) to known-good versions; the WebAuthn ceremony dep (py_webauthn) in
