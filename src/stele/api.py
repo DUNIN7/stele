@@ -332,7 +332,8 @@ async def totp_rotate_confirm(
 ) -> TotpRotateConfirmResponse:
     try:
         await person_totp.confirm_totp_rotation(
-            person_id=principal.id, secret=body.secret, code=body.code, secret_key=secret_key, db=db
+            person_id=principal.id, secret=body.secret, code=body.code,
+            secret_key=secret_key, now=_now(), db=db,
         )
     except person_totp.PersonTotpCodeInvalid as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
