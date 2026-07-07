@@ -31,23 +31,23 @@ TEMPLATE = """\
 
 # The KEK: encrypts session tokens + the TOTP secret at rest. Freshly generated
 # below — a real Fernet key. Keep it secret; losing it locks every encrypted value.
-STELE_SECRET_KEY={secret_key}
+STELE_SECRET_KEY="{secret_key}"
 
 # WebAuthn relying party. STELE_RP_ID is the registrable domain (the page-origin
 # host, e.g. localhost). STELE_RP_ORIGIN is the EXACT serving origin (scheme + host
 # + port). The browser refuses the ceremony if RP id / origin do not match where
 # the page is served — the single most common first-time failure.
-STELE_RP_ID=localhost
-STELE_RP_NAME=Stele Reference App
-STELE_RP_ORIGIN=http://localhost:8000
+STELE_RP_ID="localhost"
+STELE_RP_NAME="Stele Reference App"
+STELE_RP_ORIGIN="http://localhost:8000"
 
 # The database — a real Postgres (Stele's models use JSONB + bytea; SQLite is not
 # viable). Run Stele's baseline migration against it: `alembic upgrade head`.
-STELE_DATABASE_URL=postgresql+asyncpg://stele:stele@localhost:5433/stele_ref
+STELE_DATABASE_URL="postgresql+asyncpg://stele:stele@localhost:5433/stele_ref"
 
 # Optional — older KEKs kept decrypt-readable across a key rotation (comma-separated).
 # Leave empty unless you are rotating STELE_SECRET_KEY.
-#STELE_SECRET_KEYS_PREVIOUS=
+#STELE_SECRET_KEYS_PREVIOUS=""
 """
 
 
