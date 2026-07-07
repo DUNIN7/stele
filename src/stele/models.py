@@ -37,7 +37,7 @@ from stele.base import Base as SteleBase
 class PrincipalRow(SteleBase):
     """The Stele-owned principal — identity + auth columns only.
 
-    The standalone identity row: it carries the 7 principal columns, and the 2
+    The standalone identity row: it carries the 8 principal columns, and the 2
     credential foreign keys point *inward* at its ``id``. It carries no
     lifecycle/policy/comms columns — those are a host concern, kept on the host
     side at the same ``id``.
@@ -50,6 +50,10 @@ class PrincipalRow(SteleBase):
     )
     display_name: Mapped[str] = mapped_column(Text(), nullable=False)
     totp_secret: Mapped[Optional[str]] = mapped_column(Text(), nullable=True)
+    # The time-step index (pure function of wall-clock time, independent of
+    # which TOTP secret validated it) last accepted for this principal. A
+    # step <= this value is a replay and is rejected regardless of rotation.
+    totp_last_step: Mapped[Optional[int]] = mapped_column(Integer(), nullable=True)
     first_login_at: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
     )
