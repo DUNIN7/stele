@@ -28,6 +28,7 @@ from stele.person_totp import (
     PersonTotpCodeInvalid,
     begin_totp_rotation,
     confirm_totp_rotation,
+    verify_totp_step,
 )
 from stele.registry import create_principal, mint_principal
 from stele.session import (
@@ -221,27 +222,82 @@ async def test_begin_totp_rotation_honors_issuer_override(db):
 async def test_confirm_totp_rotation_good_code_writes_secret(db):
     person = await create_principal(display_name="TOTP Confirm", db=db)
     prov = await begin_totp_rotation(person_id=person.id, db=db)
-    code = pyotp.TOTP(prov.secret).now()
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    code = pyotp.TOTP(prov.secret).at(now)
     await confirm_totp_rotation(
         person_id=person.id, secret=prov.secret, code=code,
-        secret_key=TEST_SECRET_KEY, db=db,
+        secret_key=TEST_SECRET_KEY, now=now, db=db,
     )
     row = await db.get(PrincipalRow, person.id)
     assert row.totp_secret is not None
     decrypted = kek_decrypt(row.totp_secret, EnvKeyEncryptionKeyProvider(secret_key=TEST_SECRET_KEY))
     assert decrypted == prov.secret
+    assert row.totp_last_step == pyotp.TOTP(prov.secret).timecode(now)
 
 
 async def test_confirm_totp_rotation_bad_code_raises(db):
     person = await create_principal(display_name="TOTP Bad", db=db)
     prov = await begin_totp_rotation(person_id=person.id, db=db)
-    current = pyotp.TOTP(prov.secret).now()
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    current = pyotp.TOTP(prov.secret).at(now)
     wrong = "000000" if current != "000000" else "111111"
     with pytest.raises(PersonTotpCodeInvalid):
         await confirm_totp_rotation(
             person_id=person.id, secret=prov.secret, code=wrong,
-            secret_key=TEST_SECRET_KEY, db=db,
+            secret_key=TEST_SECRET_KEY, now=now, db=db,
         )
+
+
+async def test_confirm_totp_rotation_rejects_replayed_code(db):
+    """TS-11: the same code, submitted twice, must not rotate twice — the
+    second confirm replays an already-accepted step."""
+    person = await create_principal(display_name="TOTP Replay", db=db)
+    prov = await begin_totp_rotation(person_id=person.id, db=db)
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    code = pyotp.TOTP(prov.secret).at(now)
+    await confirm_totp_rotation(
+        person_id=person.id, secret=prov.secret, code=code,
+        secret_key=TEST_SECRET_KEY, now=now, db=db,
+    )
+    with pytest.raises(PersonTotpCodeInvalid):
+        await confirm_totp_rotation(
+            person_id=person.id, secret=prov.secret, code=code,
+            secret_key=TEST_SECRET_KEY, now=now, db=db,
+        )
+
+
+# ---------------------------------------------------------------------------
+# person_totp.verify_totp_step (pure, sync — no DB)
+# ---------------------------------------------------------------------------
+def test_verify_totp_step_accepts_fresh_code_and_returns_step():
+    secret = pyotp.random_base32()
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    code = pyotp.TOTP(secret).at(now)
+    step = verify_totp_step(secret=secret, code=code, last_step=None, now=now)
+    assert step == pyotp.TOTP(secret).timecode(now)
+
+
+def test_verify_totp_step_rejects_replay_of_same_step():
+    secret = pyotp.random_base32()
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    code = pyotp.TOTP(secret).at(now)
+    step = verify_totp_step(secret=secret, code=code, last_step=None, now=now)
+    with pytest.raises(PersonTotpCodeInvalid):
+        verify_totp_step(secret=secret, code=code, last_step=step, now=now)
+
+
+def test_verify_totp_step_accepts_later_step_after_replay_rejected():
+    secret = pyotp.random_base32()
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    first_code = pyotp.TOTP(secret).at(now)
+    first_step = verify_totp_step(secret=secret, code=first_code, last_step=None, now=now)
+
+    later = now + timedelta(seconds=31)  # > one interval: guaranteed next step
+    later_code = pyotp.TOTP(secret).at(later)
+    later_step = verify_totp_step(
+        secret=secret, code=later_code, last_step=first_step, now=later
+    )
+    assert later_step > first_step
 
 
 # ---------------------------------------------------------------------------

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -67,8 +68,21 @@ def _credential(cid: bytes) -> dict:
     return {"id": b64, "rawId": b64, "response": {}, "type": "public-key"}
 
 
-async def test_full_round_trip(db, mounted):
+async def test_full_round_trip(db, mounted, monkeypatch):
     app, cid = mounted
+    import reference_app.main as refmain
+
+    # TS-11 rejects a replayed TOTP step, so the signup-time code and the
+    # login-time code must land on distinct, deterministic steps — not two
+    # independent real-clock pyotp.now() calls that could coincidentally
+    # collide in the same 30s window. Anchored on the real current instant
+    # (captured once) rather than a fixed calendar date: the mounted stele
+    # router's own session-expiry check (stele/api.py's unpatched _now())
+    # still runs on genuine wall-clock time, so a stale hardcoded date would
+    # make an already-issued session look expired against it.
+    now = datetime.now(timezone.utc)
+    monkeypatch.setattr(refmain, "_now", lambda: now)
+
     transport = ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url=_RP_ORIGIN) as client:
         # 1. signup begin -> registration challenge
@@ -85,7 +99,7 @@ async def test_full_round_trip(db, mounted):
             json={
                 "signup_id": signup_id,
                 "credential": _credential(cid),
-                "totp_code": pyotp.TOTP(totp_secret).now(),
+                "totp_code": pyotp.TOTP(totp_secret).at(now),
             },
         )
         assert r.status_code == 200, r.text
@@ -111,8 +125,13 @@ async def test_full_round_trip(db, mounted):
         gated = await client.get("/me/security/passkeys")
         assert gated.status_code == 401, ("partial session must be gated", gated.status_code)
 
-        # 5. login totp -> full session
-        r = await client.post("/auth/login/totp", json={"code": pyotp.TOTP(totp_secret).now()})
+        # 5. login totp -> full session. A distinct, later step: the signup
+        # code's step was already accepted, and this is "a later, currently
+        # valid code" (not a replay), forced deterministically past one full
+        # interval rather than left to real-clock timing.
+        later = now + timedelta(seconds=31)
+        monkeypatch.setattr(refmain, "_now", lambda: later)
+        r = await client.post("/auth/login/totp", json={"code": pyotp.TOTP(totp_secret).at(later)})
         assert r.status_code == 200, r.text
 
         # 6. mounted enrollment route through stele.router with the full session
@@ -136,6 +155,51 @@ async def test_full_round_trip(db, mounted):
         await client.post("/auth/logout")
         who = (await client.get("/auth/whoami")).json()
         assert who["authenticated"] is False
+
+
+async def test_totp_signup_code_rejected_as_replay_at_login(db, mounted, monkeypatch):
+    """TS-11: the signup-time TOTP code must not be replayable at the very
+    next login. Forced deterministic via a frozen clock — both verifies are
+    made to land on the identical time-step on purpose, not left to whether
+    two real-clock calls happen to fall in the same 30s window."""
+    app, cid = mounted
+    import reference_app.main as refmain
+
+    # Anchored on the real current instant (captured once), not a fixed
+    # calendar date — see test_full_round_trip for why.
+    frozen = datetime.now(timezone.utc)
+    monkeypatch.setattr(refmain, "_now", lambda: frozen)
+
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url=_RP_ORIGIN) as client:
+        begin = (
+            await client.post("/auth/signup/begin", json={"display_name": "Replay Test"})
+        ).json()
+        signup_id = begin["signup_id"]
+        totp_secret = begin["totp_secret"]
+        code = pyotp.TOTP(totp_secret).at(frozen)
+
+        r = await client.post(
+            "/auth/signup/complete",
+            json={
+                "signup_id": signup_id,
+                "credential": _credential(cid),
+                "totp_code": code,
+            },
+        )
+        assert r.status_code == 200, r.text
+
+        login = (await client.post("/auth/login/begin")).json()
+        r = await client.post(
+            "/auth/login/passkey",
+            json={"login_id": login["login_id"], "credential": _credential(cid)},
+        )
+        assert r.status_code == 200, r.text
+
+        # Same code, same frozen instant -> the same step already accepted at
+        # signup. Must be rejected as a replay, not re-accepted.
+        r = await client.post("/auth/login/totp", json={"code": code})
+        assert r.status_code == 400, r.text
 
 
 async def test_mounted_totp_rotate_issuer_is_rp_name(db, mounted):
