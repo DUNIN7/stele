@@ -63,7 +63,7 @@ from reference_app.db import (
     make_session_factory,
 )
 
-_PENDING_TTL = timedelta(minutes=5)
+_PENDING_TTL = timedelta(minutes=15)
 _STATIC_DIR = Path(__file__).parent / "static"
 _CSRF_HEADER = "X-CSRF-Token"
 
