@@ -233,9 +233,12 @@ document.getElementById("add-passkey-btn").onclick = async () => {
   } catch (e) { log(friendlyError(e.message)); }
 };
 document.getElementById("logout-btn").onclick = async () => {
-  await postJSON("/auth/logout");
-  log("Signed out.");
-  await refreshWhoami();
+  try {
+    await postJSON("/auth/logout");
+    location.reload();
+  } catch (e) {
+    log(friendlyError(e.message));
+  }
 };
 
 async function refreshWhoami() {
