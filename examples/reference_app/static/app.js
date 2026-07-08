@@ -80,6 +80,42 @@ function csrfToken() {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+// Translates a raw server error message into a plain, actionable sentence.
+// Falls back to a calm generic message for anything not explicitly listed —
+// never shows raw technical text to the person using the app.
+function friendlyError(rawMessage) {
+  const rules = [
+    { match: "Missing or invalid CSRF token",
+      text: "Your session needs a refresh. Reload the page and try again." },
+    { match: "display_name is required",
+      text: "Please enter a display name before continuing." },
+    { match: "Authenticator code did not verify",
+      text: "That code didn't match. Check your authenticator app for the current 6-digit code and try again." },
+    { match: "Assertion missing credential id",
+      text: "Something went wrong reading your passkey. Try signing in again." },
+    { match: "Unknown credential",
+      text: "That passkey isn't recognized here. Try signing in again, or sign up if you haven't yet." },
+    { match: "No pending login challenge",
+      text: "That sign-in attempt has expired. Click \"Sign in with a passkey\" to start again." },
+    { match: "has expired",
+      text: "That took a bit longer than expected. Click \"Sign in with a passkey\" (or \"Register a passkey\") to start again." },
+    { match: "No such pending ceremony",
+      text: "That took a bit longer than expected — no problem, just click \"Register a passkey\" to start again." },
+    { match: "No partial session",
+      text: "Your sign-in attempt needs to start over. Click \"Sign in with a passkey\" again." },
+    { match: "Unknown principal",
+      text: "Something went wrong with this session. Click \"Sign in with a passkey\" to start again." },
+    { match: "No authenticator enrolled",
+      text: "This account doesn't have an authenticator set up yet — that shouldn't normally happen. Try signing up again." },
+    { match: "Recovery code did not verify",
+      text: "That recovery code didn't match. Double-check it and try again — each code only works once." },
+  ];
+  for (const rule of rules) {
+    if (rawMessage && rawMessage.includes(rule.match)) return rule.text;
+  }
+  return "Something went wrong. Please try again.";
+}
+
 async function postJSON(url, body) {
   const headers = { "Content-Type": "application/json" };
   const token = csrfToken();
@@ -111,7 +147,7 @@ document.getElementById("signup-btn").onclick = async () => {
     new QRCode(qrEl, { text: begin.totp_provisioning_uri, width: 200, height: 200 });
     document.getElementById("signup-totp").classList.remove("hidden");
     log("Passkey created. Scan the QR code with your authenticator app, then finish.");
-  } catch (e) { log("signup begin failed: " + e.message); }
+  } catch (e) { log(friendlyError(e.message)); }
 };
 document.getElementById("signup-finish-btn").onclick = async () => {
   try {
@@ -126,13 +162,11 @@ document.getElementById("signup-finish-btn").onclick = async () => {
     log("Signed up. You are logged in.");
     await refreshWhoami();
   } catch (e) {
+    log(friendlyError(e.message));
     if (e.message.includes("No such pending ceremony")) {
-      log("That took a bit longer than expected — no problem, just click \"Register a passkey\" to start again.");
       document.getElementById("signup-totp").classList.add("hidden");
       _signupId = null;
       window._pendingRegistration = null;
-    } else {
-      log("signup complete failed: " + e.message);
     }
   }
 };
@@ -147,21 +181,34 @@ document.getElementById("login-btn").onclick = async () => {
     await postJSON("/auth/login/passkey", { login_id: _loginId, credential: serializeAssertion(cred) });
     document.getElementById("login-2fa").classList.remove("hidden");
     log("Passkey verified. Enter your second factor.");
-  } catch (e) { log("login begin failed: " + e.message); }
+  } catch (e) {
+    log(friendlyError(e.message));
+    _loginId = null;
+  }
 };
 document.getElementById("login-totp-btn").onclick = async () => {
   try {
     await postJSON("/auth/login/totp", { code: document.getElementById("login-code").value.trim() });
     log("Second factor verified. Logged in.");
     await refreshWhoami();
-  } catch (e) { log("totp failed: " + e.message); }
+  } catch (e) {
+    log(friendlyError(e.message));
+    if (e.message.includes("No partial session") || e.message.includes("Unknown principal")) {
+      document.getElementById("login-2fa").classList.add("hidden");
+    }
+  }
 };
 document.getElementById("login-recovery-btn").onclick = async () => {
   try {
     await postJSON("/auth/login/recovery", { code: document.getElementById("login-recovery").value.trim() });
     log("Recovery code accepted. Logged in.");
     await refreshWhoami();
-  } catch (e) { log("recovery failed: " + e.message); }
+  } catch (e) {
+    log(friendlyError(e.message));
+    if (e.message.includes("No partial session") || e.message.includes("Unknown principal")) {
+      document.getElementById("login-2fa").classList.add("hidden");
+    }
+  }
 };
 
 // --- account (mounted enrollment routes) ----------------------------------
@@ -183,7 +230,7 @@ document.getElementById("add-passkey-btn").onclick = async () => {
     const cred = await navigator.credentials.create({ publicKey: coerceCreateOptions(begin.options) });
     await postJSON("/me/security/passkeys/complete", { add_id: begin.add_id, credential: serializeRegistration(cred) });
     log("Added another passkey via stele.router.");
-  } catch (e) { log("add passkey failed: " + e.message); }
+  } catch (e) { log(friendlyError(e.message)); }
 };
 document.getElementById("logout-btn").onclick = async () => {
   await postJSON("/auth/logout");
