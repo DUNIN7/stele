@@ -125,7 +125,16 @@ document.getElementById("signup-finish-btn").onclick = async () => {
     document.getElementById("signup-codes").classList.remove("hidden");
     log("Signed up. You are logged in.");
     await refreshWhoami();
-  } catch (e) { log("signup complete failed: " + e.message); }
+  } catch (e) {
+    if (e.message.includes("No such pending ceremony")) {
+      log("That took a bit longer than expected — no problem, just click \"Register a passkey\" to start again.");
+      document.getElementById("signup-totp").classList.add("hidden");
+      _signupId = null;
+      window._pendingRegistration = null;
+    } else {
+      log("signup complete failed: " + e.message);
+    }
+  }
 };
 
 // --- login ----------------------------------------------------------------
