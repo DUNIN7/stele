@@ -79,6 +79,25 @@ alembic upgrade head
 
 The three tables build against a fresh database with no external dependency.
 
+### Consuming Stele alongside an existing schema
+
+Stele's migration chain tracks its own progress in `stele_alembic_version` (CR-2026-150),
+distinct from the default `alembic_version` — so it can run independently of a
+host's own migration chain against the same database. But if the host's own
+migrations already created Stele's tables (e.g. an engine that owned
+`principals` before adopting Stele, or otherwise pre-built Stele's schema
+through its own chain), Stele's `0001_baseline` will try to create tables
+that already exist and fail. In that case, stamp the baseline instead of
+running it, then upgrade forward for anything after it:
+
+```sh
+alembic stamp 0001_baseline
+alembic upgrade head
+```
+
+A genuinely fresh database (nothing built yet, by either chain) doesn't need
+this — a plain `alembic upgrade head` from a clean start works as shown above.
+
 To run the reference host end-to-end (Postgres, config, the browser ceremony),
 follow [`examples/README.md`](examples/README.md). To run the tests:
 
