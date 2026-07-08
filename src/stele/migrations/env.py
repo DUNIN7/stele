@@ -6,6 +6,17 @@ Async (asyncpg) online migrations. The database URL is read from the
 ``target_metadata`` is Stele's own ``SteleBase.metadata`` — importing
 ``stele.models`` registers the 3 tables on it (for autogenerate; the baseline
 itself is hand-authored).
+
+CR-2026-150: this chain tracks its own progress in ``stele_alembic_version``,
+not the default ``alembic_version``. A host that also runs its own migrations
+against the same database (e.g. an engine consuming Stele as an editable
+dependency) has its own alembic chain with its own ``alembic_version`` table;
+without a distinct table name here, the two chains collide the moment either
+one is run against the shared database — Stele's own ``alembic upgrade head``
+would find the host's stamped revision and fail to locate it in Stele's
+history. A distinct version table lets both chains be run independently
+against one database. See README's "Consuming Stele alongside an existing
+schema" note for the first-time-setup step this implies.
 """
 from __future__ import annotations
 
@@ -40,13 +51,18 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        version_table="stele_alembic_version",
     )
     with context.begin_transaction():
         context.run_migrations()
 
 
 def _do_run_migrations(connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        version_table="stele_alembic_version",
+    )
     with context.begin_transaction():
         context.run_migrations()
 
