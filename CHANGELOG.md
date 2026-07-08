@@ -56,3 +56,4 @@ This release closes out a full internal security review of the authentication su
 - Pending-challenge and login-challenge stores are in-process only (single-worker). A multi-process deployment should back these with a shared store; the seam for this is planned but not yet built.
 - Rate limiting / lockout on repeated authentication attempts is planned, not yet implemented.
 - Immediate session revocation is planned, not yet implemented — sessions currently expire on a configurable TTL, not on demand.
+- Agent identity — AI agents as authenticated principals, not just humans — is something we're exploring for a future, separate product alongside Stele. Stele itself stays focused on human identity; nothing here changes what Stele is or does.
