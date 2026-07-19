@@ -62,15 +62,39 @@ class WebauthnConfig:
     rp_id: str
     rp_name: str
     rp_origin: str
+    additional_origins: tuple[str, ...] = ()
     user_verification: UserVerificationRequirement = (
         UserVerificationRequirement.PREFERRED
     )
 
+    @property
+    def expected_origins(self) -> list[str]:
+        """Every origin a ceremony may legitimately come from.
+
+        `rp_origin` stays the single canonical origin — it is what callers
+        use to build links — while `additional_origins` carries any further
+        origins the same RP is reachable at. One deployment serving both
+        app.dunin7.com and a development hostname needs both accepted, and
+        the underlying library takes a list for exactly this case.
+        """
+        return [self.rp_origin, *self.additional_origins]
+
     def __post_init__(self) -> None:
-        parsed = urlparse(self.rp_origin)
+        for origin in self.expected_origins:
+            self._validate_origin(origin)
+
+    def _validate_origin(self, origin: str) -> None:
+        """TS-09: a misconfigured RP pairing fails loud at construction.
+
+        Applied to EVERY accepted origin, not just `rp_origin`. An additional
+        origin is an origin the RP will accept assertions from, so it needs
+        the identical rp_id-suffix check — otherwise multi-origin support
+        would be a hole through which an unrelated host could be trusted.
+        """
+        parsed = urlparse(origin)
         if parsed.scheme not in ("http", "https") or not parsed.hostname:
             raise WebauthnConfigError(
-                f"rp_origin must be a well-formed http(s):// URL; got {self.rp_origin!r}."
+                f"origin must be a well-formed http(s):// URL; got {origin!r}."
             )
         origin_host = parsed.hostname
         if not self.rp_id or not (
@@ -78,7 +102,7 @@ class WebauthnConfig:
         ):
             raise WebauthnConfigError(
                 f"rp_id {self.rp_id!r} is not a valid registrable-domain suffix of "
-                f"rp_origin's host {origin_host!r}."
+                f"origin's host {origin_host!r} (origin {origin!r})."
             )
 
 
@@ -184,7 +208,7 @@ def verify_registration(
         credential=credential,
         expected_challenge=expected_challenge,
         expected_rp_id=config.rp_id,
-        expected_origin=config.rp_origin,
+        expected_origin=config.expected_origins,
         require_user_verification=(
             config.user_verification == UserVerificationRequirement.REQUIRED
         ),
@@ -247,7 +271,7 @@ def verify_authentication(
         credential=credential,
         expected_challenge=expected_challenge,
         expected_rp_id=config.rp_id,
-        expected_origin=config.rp_origin,
+        expected_origin=config.expected_origins,
         credential_public_key=credential_public_key,
         credential_current_sign_count=current_sign_count,
         require_user_verification=(

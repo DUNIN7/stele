@@ -82,6 +82,69 @@ def test_webauthn_config_rejects_non_http_scheme():
 
 
 # ---------------------------------------------------------------------------
+# Multi-origin — one deployment reachable at more than one hostname
+# ---------------------------------------------------------------------------
+def test_webauthn_config_defaults_to_a_single_expected_origin():
+    # The additive change must not alter single-origin behavior.
+    config = WebauthnConfig(
+        rp_id="example.com", rp_name="x", rp_origin="https://example.com"
+    )
+    assert config.additional_origins == ()
+    assert config.expected_origins == ["https://example.com"]
+
+
+def test_webauthn_config_accepts_additional_origins():
+    config = WebauthnConfig(
+        rp_id="dunin7.com",
+        rp_name="x",
+        rp_origin="https://app.dunin7.com",
+        additional_origins=("https://loomworks-dev.dunin7.com",),
+    )
+    assert config.expected_origins == [
+        "https://app.dunin7.com",
+        "https://loomworks-dev.dunin7.com",
+    ]
+
+
+def test_webauthn_config_rejects_additional_origin_unrelated_to_rp_id():
+    # The security property of the multi-origin change: an additional origin
+    # is one the RP will accept assertions from, so it gets the identical
+    # rp_id-suffix check. Without this, multi-origin support would be a hole
+    # through which an unrelated host could be trusted.
+    with pytest.raises(WebauthnConfigError):
+        WebauthnConfig(
+            rp_id="dunin7.com",
+            rp_name="x",
+            rp_origin="https://app.dunin7.com",
+            additional_origins=("https://evil.com",),
+        )
+
+
+def test_webauthn_config_rejects_malformed_additional_origin():
+    with pytest.raises(WebauthnConfigError):
+        WebauthnConfig(
+            rp_id="dunin7.com",
+            rp_name="x",
+            rp_origin="https://app.dunin7.com",
+            additional_origins=("not-a-url",),
+        )
+
+
+def test_webauthn_config_validates_every_additional_origin_not_just_the_first():
+    # A loop that stopped at the first entry would pass this silently.
+    with pytest.raises(WebauthnConfigError):
+        WebauthnConfig(
+            rp_id="dunin7.com",
+            rp_name="x",
+            rp_origin="https://app.dunin7.com",
+            additional_origins=(
+                "https://loomworks-dev.dunin7.com",
+                "https://evil.com",
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
 # A-2 — in-process pending stores sweep expired entries on every put()
 # ---------------------------------------------------------------------------
 async def test_login_challenge_store_sweeps_expired_entries_under_flooding():
