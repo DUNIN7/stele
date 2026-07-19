@@ -45,6 +45,19 @@ app.dependency_overrides[provide_webauthn_config] = lambda: WebauthnConfig(
 app.include_router(router, prefix="/auth")
 ```
 
+**Serving one relying party at more than one hostname.** `rp_origin` is the single canonical origin — keep it single-valued, since applications commonly reuse it as a base URL for building links. Additional origins the same RP accepts ceremonies from go in `additional_origins`:
+
+```python
+WebauthnConfig(
+    rp_id="yourapp.com",
+    rp_name="Your App",
+    rp_origin="https://app.yourapp.com",
+    additional_origins=("https://dev.yourapp.com",),
+)
+```
+
+Every entry is validated against `rp_id` at construction, exactly as `rp_origin` is — an origin outside the relying party's registrable domain raises immediately rather than being quietly trusted.
+
 Both slots are mandatory and fail loudly if unsupplied. Everything else (`resolve_current_principal`, `extract_token`, `provide_secret_key`, `provide_person_email`) has a working default — override only if you need different behavior.
 
 ## What Stele does not do (by design — don't build around this as a bug)

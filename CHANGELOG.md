@@ -1,3 +1,26 @@
+## v0.4.0 — 2026-07-18
+
+### Added
+- `WebauthnConfig.additional_origins` — one relying party can accept
+  ceremonies from more than one origin. For a deployment reachable at both
+  a production and a development hostname, which previously had to pick
+  one and reject ceremonies at the other. `rp_origin` remains the single
+  canonical origin (consuming applications commonly use it as a
+  link-building base URL, so it must stay single-valued); further origins
+  are additive.
+
+### Security
+- Relying-party validation now applies to **every** accepted origin, not
+  only `rp_origin`. An additional origin is one the RP will accept
+  assertions from, so it gets the identical rp_id-registrable-suffix
+  check — without this, multi-origin support would be a hole through
+  which an unrelated host could be trusted.
+
+### Compatibility
+- Backward compatible. `additional_origins` defaults to empty, so
+  single-origin behavior is unchanged and no existing caller needs to
+  do anything.
+
 ## v0.3.0 — 2026-07-07
 
 ### Added
